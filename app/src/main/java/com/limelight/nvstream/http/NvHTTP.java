@@ -87,7 +87,17 @@ public class NvHTTP {
         if (model == null || model.isEmpty()) {
             return "roth";
         }
-        return model;
+        StringBuilder sb = new StringBuilder(model.length());
+        for (int i = 0; i < model.length(); i++) {
+            char c = model.charAt(i);
+            if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.') {
+                sb.append(c);
+            } else if (Character.isWhitespace(c) && sb.length() > 0 && sb.charAt(sb.length() - 1) != '_') {
+                sb.append('_');
+            }
+        }
+        String out = sb.toString();
+        return out.isEmpty() ? "roth" : out;
     }
 
     private static String encodedDeviceName() {
