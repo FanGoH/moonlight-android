@@ -471,8 +471,13 @@ public class NvConnection {
 
     public void sendMousePosition(short x, short y, short referenceWidth, short referenceHeight)
     {
+        sendMousePosition(x, y, referenceWidth, referenceHeight, 0);
+    }
+
+    public void sendMousePosition(short x, short y, short referenceWidth, short referenceHeight, int displayIndex)
+    {
         if (!isMonkey) {
-            MoonBridge.sendMousePosition(x, y, referenceWidth, referenceHeight);
+            MoonBridge.sendMousePositionOnDisplay(x, y, referenceWidth, referenceHeight, (short)displayIndex);
         }
     }
 

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.os.Bundle;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 
 /**
@@ -12,6 +13,7 @@ import android.widget.FrameLayout;
  * (AYN Thor bottom panel, HDMI, or a wireless display).
  */
 public class DualDisplayPresentation extends Presentation {
+    private View backgroundTouchView;
     private StreamView streamView;
 
     public DualDisplayPresentation(Context outerContext, Display display) {
@@ -22,6 +24,11 @@ public class DualDisplayPresentation extends Presentation {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         FrameLayout root = new FrameLayout(getContext());
+        backgroundTouchView = new View(getContext());
+        FrameLayout.LayoutParams fill = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        root.addView(backgroundTouchView, fill);
         streamView = new StreamView(getContext());
         FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -29,6 +36,10 @@ public class DualDisplayPresentation extends Presentation {
                 Gravity.CENTER);
         root.addView(streamView, params);
         setContentView(root);
+    }
+
+    public View getBackgroundTouchView() {
+        return backgroundTouchView;
     }
 
     public StreamView getStreamView() {

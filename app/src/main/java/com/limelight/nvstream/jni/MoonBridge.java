@@ -414,6 +414,8 @@ public class MoonBridge {
 
     public static native void sendMousePosition(short x, short y, short referenceWidth, short referenceHeight);
 
+    public static native void sendMousePositionOnDisplay(short x, short y, short referenceWidth, short referenceHeight, short displayIndex);
+
     public static native void sendMouseMoveAsMousePosition(short deltaX, short deltaY, short referenceWidth, short referenceHeight);
 
     public static native void sendMouseButton(byte buttonEvent, byte mouseButton);
