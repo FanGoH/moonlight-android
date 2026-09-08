@@ -110,7 +110,11 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_MOTION_SENSORS = true;
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
     private static final String DUAL_DISPLAY_PREF_STRING = "list_dual_display";
+    private static final String SECOND_SCREEN_RES_PREF_STRING = "list_second_screen_res";
+    private static final String STACK_LAYOUT_PREF_STRING = "list_stack_layout";
     private static final String DEFAULT_DUAL_DISPLAY = "auto";
+    private static final String DEFAULT_SECOND_SCREEN_RES = "auto";
+    private static final String DEFAULT_STACK_LAYOUT = "tv_top";
 
     public static final int FRAME_PACING_MIN_LATENCY = 0;
     public static final int FRAME_PACING_BALANCED = 1;
@@ -159,6 +163,8 @@ public class PreferenceConfiguration {
     public boolean gamepadTouchpadAsMouse;
     public boolean gamepadMotionSensorsFallbackToDevice;
     public String dualDisplayMode;
+    public String secondScreenRes;
+    public String stackLayout;
 
     public static boolean isNativeResolution(int width, int height) {
         // It's not a native resolution if it matches an existing resolution option
@@ -612,6 +618,8 @@ public class PreferenceConfiguration {
         config.gamepadMotionSensors = prefs.getBoolean(GAMEPAD_MOTION_SENSORS_PREF_STRING, DEFAULT_GAMEPAD_MOTION_SENSORS);
         config.gamepadMotionSensorsFallbackToDevice = prefs.getBoolean(GAMEPAD_MOTION_FALLBACK_PREF_STRING, DEFAULT_GAMEPAD_MOTION_FALLBACK);
         config.dualDisplayMode = prefs.getString(DUAL_DISPLAY_PREF_STRING, DEFAULT_DUAL_DISPLAY);
+        config.secondScreenRes = prefs.getString(SECOND_SCREEN_RES_PREF_STRING, DEFAULT_SECOND_SCREEN_RES);
+        config.stackLayout = prefs.getString(STACK_LAYOUT_PREF_STRING, DEFAULT_STACK_LAYOUT);
 
         return config;
     }

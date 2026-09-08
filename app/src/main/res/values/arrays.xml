@@ -152,4 +152,40 @@
         <item>primary_only</item>
         <item>gamepad_only</item>
     </string-array>
+
+    <string-array name="second_screen_res_names">
+        <item>@string/second_screen_res_auto</item>
+        <item>@string/second_screen_res_stream</item>
+        <item>@string/second_screen_res_gamepad</item>
+        <item>@string/resolution_720p</item>
+        <item>@string/resolution_1080p</item>
+        <item>@string/resolution_1440p</item>
+        <item>@string/resolution_4k</item>
+    </string-array>
+    <string-array name="second_screen_res_values" translatable="false">
+        <item>auto</item>
+        <item>stream</item>
+        <item>1080x1240</item>
+        <item>1280x720</item>
+        <item>1920x1080</item>
+        <item>2560x1440</item>
+        <item>3840x2160</item>
+    </string-array>
+
+    <string-array name="stack_layout_names">
+        <item>@string/stack_layout_tv_top</item>
+        <item>@string/stack_layout_gamepad_top</item>
+        <item>@string/stack_layout_side_tv</item>
+        <item>@string/stack_layout_side_gamepad</item>
+        <item>@string/stack_layout_large_tv</item>
+        <item>@string/stack_layout_large_gamepad</item>
+    </string-array>
+    <string-array name="stack_layout_values" translatable="false">
+        <item>tv_top</item>
+        <item>gamepad_top</item>
+        <item>side_tv</item>
+        <item>side_gamepad</item>
+        <item>large_tv</item>
+        <item>large_gamepad</item>
+    </string-array>
 </resources>

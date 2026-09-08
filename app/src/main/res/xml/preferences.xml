@@ -47,6 +47,20 @@
             android:entries="@array/dual_display_names"
             android:entryValues="@array/dual_display_values"
             android:defaultValue="auto" />
+        <ListPreference
+            android:key="list_second_screen_res"
+            android:title="@string/title_second_screen_res"
+            android:summary="@string/summary_second_screen_res"
+            android:entries="@array/second_screen_res_names"
+            android:entryValues="@array/second_screen_res_values"
+            android:defaultValue="auto" />
+        <ListPreference
+            android:key="list_stack_layout"
+            android:title="@string/title_stack_layout"
+            android:summary="@string/summary_stack_layout"
+            android:entries="@array/stack_layout_names"
+            android:entryValues="@array/stack_layout_values"
+            android:defaultValue="tv_top" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_audio_settings">
         <ListPreference
