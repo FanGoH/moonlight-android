@@ -386,6 +386,18 @@ public class NvHTTP {
         // The MJOLNIR codename was used by GFE but never by any third-party server
         details.nvidiaServer = getXmlString(serverInfo, "state", true).contains("MJOLNIR");
 
+        String maxVideoStreams = getXmlString(serverInfo, "MaxVideoStreams", false);
+        if (maxVideoStreams != null) {
+            try {
+                details.maxVideoStreams = Integer.parseInt(maxVideoStreams);
+            } catch (NumberFormatException e) {
+                details.maxVideoStreams = 1;
+            }
+        }
+        else {
+            details.maxVideoStreams = 1;
+        }
+
         // We could reach it so it's online
         details.state = ComputerDetails.State.ONLINE;
 

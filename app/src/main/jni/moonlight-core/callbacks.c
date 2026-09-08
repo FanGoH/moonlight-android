@@ -22,6 +22,11 @@ static jmethodID BridgeDrStartMethod;
 static jmethodID BridgeDrStopMethod;
 static jmethodID BridgeDrCleanupMethod;
 static jmethodID BridgeDrSubmitDecodeUnitMethod;
+static jmethodID BridgeDrSetup1Method;
+static jmethodID BridgeDrStart1Method;
+static jmethodID BridgeDrStop1Method;
+static jmethodID BridgeDrCleanup1Method;
+static jmethodID BridgeDrSubmitDecodeUnit1Method;
 static jmethodID BridgeArInitMethod;
 static jmethodID BridgeArStartMethod;
 static jmethodID BridgeArStopMethod;
@@ -38,7 +43,9 @@ static jmethodID BridgeClSetHdrModeMethod;
 static jmethodID BridgeClRumbleTriggersMethod;
 static jmethodID BridgeClSetMotionEventStateMethod;
 static jmethodID BridgeClSetControllerLEDMethod;
+static jmethodID BridgeClSecondaryVideoEndedMethod;
 static jbyteArray DecodedFrameBuffer;
+static jbyteArray DecodedFrameBuffer1;
 static jshortArray DecodedAudioBuffer;
 
 void DetachThread(void* context) {
@@ -86,6 +93,11 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeDrStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop", "()V");
     BridgeDrCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrCleanup", "()V");
     BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJ)I");
+    BridgeDrSetup1Method = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSetup1", "(IIII)I");
+    BridgeDrStart1Method = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStart1", "()V");
+    BridgeDrStop1Method = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop1", "()V");
+    BridgeDrCleanup1Method = (*env)->GetStaticMethodID(env, clazz, "bridgeDrCleanup1", "()V");
+    BridgeDrSubmitDecodeUnit1Method = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit1", "([BIIIICJJ)I");
     BridgeArInitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArInit", "(III)I");
     BridgeArStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStart", "()V");
     BridgeArStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStop", "()V");
@@ -102,6 +114,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeClRumbleTriggersMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClRumbleTriggers", "(SSS)V");
     BridgeClSetMotionEventStateMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetMotionEventState", "(SBS)V");
     BridgeClSetControllerLEDMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSetControllerLED", "(SBBB)V");
+    BridgeClSecondaryVideoEndedMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeClSecondaryVideoEnded", "()V");
 }
 
 int BridgeDrSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
@@ -192,6 +205,92 @@ int BridgeDrSubmitDecodeUnit(PDECODE_UNIT decodeUnit) {
                                        (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs);
     if ((*env)->ExceptionCheck(env)) {
         // We will crash here
+        (*JVM)->DetachCurrentThread(JVM);
+        return DR_OK;
+    }
+    else {
+        return ret;
+    }
+}
+
+int BridgeDrSetup1(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags) {
+    JNIEnv* env = GetThreadEnv();
+    int err;
+
+    err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSetup1Method, videoFormat, width, height, redrawRate);
+    if ((*env)->ExceptionCheck(env)) {
+        return -1;
+    }
+    else if (err != 0) {
+        return err;
+    }
+
+    DecodedFrameBuffer1 = (*env)->NewGlobalRef(env, (*env)->NewByteArray(env, 32768));
+    return 0;
+}
+
+void BridgeDrStart1(void) {
+    JNIEnv* env = GetThreadEnv();
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeDrStart1Method);
+}
+
+void BridgeDrStop1(void) {
+    JNIEnv* env = GetThreadEnv();
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeDrStop1Method);
+}
+
+void BridgeDrCleanup1(void) {
+    JNIEnv* env = GetThreadEnv();
+    if (DecodedFrameBuffer1) {
+        (*env)->DeleteGlobalRef(env, DecodedFrameBuffer1);
+        DecodedFrameBuffer1 = NULL;
+    }
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeDrCleanup1Method);
+}
+
+int BridgeDrSubmitDecodeUnit1(PDECODE_UNIT decodeUnit) {
+    JNIEnv* env = GetThreadEnv();
+    int ret;
+
+    if ((*env)->GetArrayLength(env, DecodedFrameBuffer1) < decodeUnit->fullLength) {
+        (*env)->DeleteGlobalRef(env, DecodedFrameBuffer1);
+        DecodedFrameBuffer1 = (*env)->NewGlobalRef(env, (*env)->NewByteArray(env, decodeUnit->fullLength));
+    }
+
+    PLENTRY currentEntry;
+    int offset;
+
+    currentEntry = decodeUnit->bufferList;
+    offset = 0;
+    while (currentEntry != NULL) {
+        if (currentEntry->bufferType != BUFFER_TYPE_PICDATA) {
+            (*env)->SetByteArrayRegion(env, DecodedFrameBuffer1, 0, currentEntry->length, (jbyte*)currentEntry->data);
+
+            ret = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSubmitDecodeUnit1Method,
+                                              DecodedFrameBuffer1, currentEntry->length, currentEntry->bufferType,
+                                              decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
+                                              (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs);
+            if ((*env)->ExceptionCheck(env)) {
+                (*JVM)->DetachCurrentThread(JVM);
+                return DR_OK;
+            }
+            else if (ret != DR_OK) {
+                return ret;
+            }
+        }
+        else {
+            (*env)->SetByteArrayRegion(env, DecodedFrameBuffer1, offset, currentEntry->length, (jbyte*)currentEntry->data);
+            offset += currentEntry->length;
+        }
+
+        currentEntry = currentEntry->next;
+    }
+
+    ret = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeDrSubmitDecodeUnit1Method,
+                                       DecodedFrameBuffer1, offset, BUFFER_TYPE_PICDATA,
+                                       decodeUnit->frameNumber, decodeUnit->frameType, (jchar)decodeUnit->frameHostProcessingLatency,
+                                       (jlong)decodeUnit->receiveTimeUs, (jlong)decodeUnit->enqueueTimeUs);
+    if ((*env)->ExceptionCheck(env)) {
         (*JVM)->DetachCurrentThread(JVM);
         return DR_OK;
     }
@@ -389,6 +488,14 @@ void BridgeClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, u
     }
 }
 
+void BridgeClSecondaryVideoEnded(void) {
+    JNIEnv* env = GetThreadEnv();
+    (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeClSecondaryVideoEndedMethod);
+    if ((*env)->ExceptionCheck(env)) {
+        (*JVM)->DetachCurrentThread(JVM);
+    }
+}
+
 void BridgeClLogMessage(const char* format, ...) {
     va_list va;
     va_start(va, format);
@@ -402,6 +509,14 @@ static DECODER_RENDERER_CALLBACKS BridgeVideoRendererCallbacks = {
         .stop = BridgeDrStop,
         .cleanup = BridgeDrCleanup,
         .submitDecodeUnit = BridgeDrSubmitDecodeUnit,
+};
+
+static DECODER_RENDERER_CALLBACKS BridgeVideoRendererCallbacks1 = {
+        .setup = BridgeDrSetup1,
+        .start = BridgeDrStart1,
+        .stop = BridgeDrStop1,
+        .cleanup = BridgeDrCleanup1,
+        .submitDecodeUnit = BridgeDrSubmitDecodeUnit1,
 };
 
 static AUDIO_RENDERER_CALLBACKS BridgeAudioRendererCallbacks = {
@@ -426,6 +541,7 @@ static CONNECTION_LISTENER_CALLBACKS BridgeConnListenerCallbacks = {
         .rumbleTriggers = BridgeClRumbleTriggers,
         .setMotionEventState = BridgeClSetMotionEventState,
         .setControllerLED = BridgeClSetControllerLED,
+        .secondaryVideoEnded = BridgeClSecondaryVideoEnded,
 };
 
 static bool
@@ -461,7 +577,9 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jint clientRefreshRateX100,
                                                            jbyteArray riAesKey, jbyteArray riAesIv,
                                                            jint videoCapabilities,
-                                                           jint colorSpace, jint colorRange) {
+                                                           jint colorSpace, jint colorRange,
+                                                           jint enableVideoStream1,
+                                                           jint width1, jint height1, jint fps1, jint bitrate1) {
     SERVER_INFORMATION serverInfo = {
             .address = (*env)->GetStringUTFChars(env, address, 0),
             .serverInfoAppVersion = (*env)->GetStringUTFChars(env, appVersion, 0),
@@ -481,7 +599,12 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
             .clientRefreshRateX100 = clientRefreshRateX100,
             .encryptionFlags = ENCFLG_AUDIO,
             .colorSpace = colorSpace,
-            .colorRange = colorRange
+            .colorRange = colorRange,
+            .enableVideoStream1 = enableVideoStream1,
+            .width1 = width1,
+            .height1 = height1,
+            .fps1 = fps1,
+            .bitrate1 = bitrate1,
     };
 
     jbyte* riAesKeyBuf = (*env)->GetByteArrayElements(env, riAesKey, NULL);
@@ -493,10 +616,18 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
     (*env)->ReleaseByteArrayElements(env, riAesIv, riAesIvBuf, JNI_ABORT);
 
     BridgeVideoRendererCallbacks.capabilities = videoCapabilities;
+    BridgeVideoRendererCallbacks1.capabilities = videoCapabilities;
 
     // Enable all encryption features if the platform has fast AES support
     if (hasFastAes()) {
         streamConfig.encryptionFlags = ENCFLG_ALL;
+    }
+
+    if (enableVideoStream1) {
+        LiSetSecondaryVideoCallbacks(&BridgeVideoRendererCallbacks1);
+    }
+    else {
+        LiSetSecondaryVideoCallbacks(NULL);
     }
 
     int ret = LiStartConnection(&serverInfo,

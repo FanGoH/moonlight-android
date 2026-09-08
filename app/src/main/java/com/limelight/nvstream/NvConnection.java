@@ -381,6 +381,12 @@ public class NvConnection {
 
     public void start(final AudioRenderer audioRenderer, final VideoDecoderRenderer videoDecoderRenderer, final NvConnectionListener connectionListener)
     {
+        start(audioRenderer, videoDecoderRenderer, null, connectionListener);
+    }
+
+    public void start(final AudioRenderer audioRenderer, final VideoDecoderRenderer videoDecoderRenderer,
+                      final VideoDecoderRenderer videoDecoderRenderer1, final NvConnectionListener connectionListener)
+    {
         new Thread(new Runnable() {
             public void run() {
                 context.connListener = connectionListener;
@@ -424,7 +430,7 @@ public class NvConnection {
                 // Moonlight-core is not thread-safe with respect to connection start and stop, so
                 // we must not invoke that functionality in parallel.
                 synchronized (MoonBridge.class) {
-                    MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener);
+                    MoonBridge.setupBridge(videoDecoderRenderer, videoDecoderRenderer1, audioRenderer, connectionListener);
                     int ret = MoonBridge.startConnection(context.serverAddress.address,
                             context.serverAppVersion, context.serverGfeVersion, context.rtspSessionUrl,
                             context.serverCodecModeSupport,
@@ -437,7 +443,12 @@ public class NvConnection {
                             context.riKey.getEncoded(), ib.array(),
                             context.videoCapabilities,
                             context.streamConfig.getColorSpace(),
-                            context.streamConfig.getColorRange());
+                            context.streamConfig.getColorRange(),
+                            context.streamConfig.getEnableVideoStream1() ? 1 : 0,
+                            context.streamConfig.getWidth1(),
+                            context.streamConfig.getHeight1(),
+                            context.streamConfig.getFps1(),
+                            context.streamConfig.getBitrate1());
                     if (ret != 0) {
                         // LiStartConnection() failed, so the caller is not expected
                         // to stop the connection themselves. We need to release their

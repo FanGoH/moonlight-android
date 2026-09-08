@@ -128,6 +128,7 @@ public class MoonBridge {
 
     private static AudioRenderer audioRenderer;
     private static VideoDecoderRenderer videoRenderer;
+    private static VideoDecoderRenderer videoRenderer1;
     private static NvConnectionListener connectionListener;
 
     static {
@@ -222,6 +223,45 @@ public class MoonBridge {
                                                long receiveTimeUs, long enqueueTimeUs) {
         if (videoRenderer != null) {
             return videoRenderer.submitDecodeUnit(decodeUnitData, decodeUnitLength,
+                    decodeUnitType, frameNumber, frameType, frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
+        }
+        else {
+            return DR_OK;
+        }
+    }
+
+    public static int bridgeDrSetup1(int videoFormat, int width, int height, int redrawRate) {
+        if (videoRenderer1 != null) {
+            return videoRenderer1.setup(videoFormat, width, height, redrawRate);
+        }
+        else {
+            return -1;
+        }
+    }
+
+    public static void bridgeDrStart1() {
+        if (videoRenderer1 != null) {
+            videoRenderer1.start();
+        }
+    }
+
+    public static void bridgeDrStop1() {
+        if (videoRenderer1 != null) {
+            videoRenderer1.stop();
+        }
+    }
+
+    public static void bridgeDrCleanup1() {
+        if (videoRenderer1 != null) {
+            videoRenderer1.cleanup();
+        }
+    }
+
+    public static int bridgeDrSubmitDecodeUnit1(byte[] decodeUnitData, int decodeUnitLength, int decodeUnitType,
+                                                int frameNumber, int frameType, char frameHostProcessingLatency,
+                                                long receiveTimeUs, long enqueueTimeUs) {
+        if (videoRenderer1 != null) {
+            return videoRenderer1.submitDecodeUnit(decodeUnitData, decodeUnitLength,
                     decodeUnitType, frameNumber, frameType, frameHostProcessingLatency, receiveTimeUs, enqueueTimeUs);
         }
         else {
@@ -328,14 +368,27 @@ public class MoonBridge {
         }
     }
 
-    public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer, NvConnectionListener connectionListener) {
+    public static void bridgeClSecondaryVideoEnded() {
+        if (connectionListener != null) {
+            connectionListener.secondaryVideoEnded();
+        }
+    }
+
+    public static void setupBridge(VideoDecoderRenderer videoRenderer, VideoDecoderRenderer videoRenderer1,
+                                   AudioRenderer audioRenderer, NvConnectionListener connectionListener) {
         MoonBridge.videoRenderer = videoRenderer;
+        MoonBridge.videoRenderer1 = videoRenderer1;
         MoonBridge.audioRenderer = audioRenderer;
         MoonBridge.connectionListener = connectionListener;
     }
 
+    public static void setupBridge(VideoDecoderRenderer videoRenderer, AudioRenderer audioRenderer, NvConnectionListener connectionListener) {
+        setupBridge(videoRenderer, null, audioRenderer, connectionListener);
+    }
+
     public static void cleanupBridge() {
         MoonBridge.videoRenderer = null;
+        MoonBridge.videoRenderer1 = null;
         MoonBridge.audioRenderer = null;
         MoonBridge.connectionListener = null;
     }
@@ -348,7 +401,9 @@ public class MoonBridge {
                                               int clientRefreshRateX100,
                                               byte[] riAesKey, byte[] riAesIv,
                                               int videoCapabilities,
-                                              int colorSpace, int colorRange);
+                                              int colorSpace, int colorRange,
+                                              int enableVideoStream1,
+                                              int width1, int height1, int fps1, int bitrate1);
 
     public static native void stopConnection();
 
