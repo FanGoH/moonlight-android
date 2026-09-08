@@ -40,6 +40,13 @@
             android:key="checkbox_stretch_video"
             android:title="@string/title_checkbox_stretch_video"
             android:defaultValue="false" />
+        <ListPreference
+            android:key="list_dual_display"
+            android:title="@string/title_dual_display"
+            android:summary="@string/summary_dual_display"
+            android:entries="@array/dual_display_names"
+            android:entryValues="@array/dual_display_values"
+            android:defaultValue="auto" />
     </PreferenceCategory>
     <PreferenceCategory android:title="@string/category_audio_settings">
         <ListPreference

@@ -27,7 +27,9 @@ LOCAL_SRC_FILES := moonlight-common-c/src/AudioStream.c \
                    moonlight-common-c/src/SdpGenerator.c \
                    moonlight-common-c/src/SimpleStun.c \
                    moonlight-common-c/src/VideoDepacketizer.c \
+                   moonlight-common-c/src/VideoDepacketizerSecondary.c \
                    moonlight-common-c/src/VideoStream.c \
+                   moonlight-common-c/src/VideoStreamSecondary.c \
                    moonlight-common-c/nanors/deps/obl/oblas_common.c \
                    moonlight-common-c/nanors/deps/obl/oblas_lite.c \
                    moonlight-common-c/nanors/rs.c \

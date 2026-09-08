@@ -28,6 +28,8 @@ public class StreamConfiguration {
     private int colorRange;
     private int colorSpace;
     private boolean persistGamepadsAfterDisconnect;
+    private boolean enableVideoStream1;
+    private int width1, height1, fps1, bitrate1;
 
     public static class Builder {
         private StreamConfiguration config = new StreamConfiguration();
@@ -128,6 +130,15 @@ public class StreamConfiguration {
             return this;
         }
 
+        public StreamConfiguration.Builder setSecondaryVideo(int width, int height, int fps, int bitrate) {
+            config.enableVideoStream1 = true;
+            config.width1 = width;
+            config.height1 = height;
+            config.fps1 = fps;
+            config.bitrate1 = bitrate;
+            return this;
+        }
+
         public StreamConfiguration build() {
             return config;
         }
@@ -220,5 +231,25 @@ public class StreamConfiguration {
 
     public int getColorSpace() {
         return colorSpace;
+    }
+
+    public boolean getEnableVideoStream1() {
+        return enableVideoStream1;
+    }
+
+    public int getWidth1() {
+        return width1;
+    }
+
+    public int getHeight1() {
+        return height1;
+    }
+
+    public int getFps1() {
+        return fps1;
+    }
+
+    public int getBitrate1() {
+        return bitrate1;
     }
 }

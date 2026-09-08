@@ -76,6 +76,7 @@ public class ComputerDetails {
     public int runningGameId;
     public String rawAppList;
     public boolean nvidiaServer;
+    public int maxVideoStreams;
 
     public ComputerDetails() {
         // Use defaults
@@ -146,6 +147,9 @@ public class ComputerDetails {
         this.runningGameId = details.runningGameId;
         this.nvidiaServer = details.nvidiaServer;
         this.rawAppList = details.rawAppList;
+        if (details.maxVideoStreams > 0) {
+            this.maxVideoStreams = details.maxVideoStreams;
+        }
     }
 
     @Override

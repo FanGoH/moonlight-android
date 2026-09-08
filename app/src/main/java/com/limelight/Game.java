@@ -31,6 +31,8 @@ import com.limelight.preferences.GlPreferences;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
+import com.limelight.ui.DualDisplayLayout;
+import com.limelight.ui.DualDisplayPresentation;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.ServerHelper;
 import com.limelight.utils.ShortcutHelper;
@@ -75,9 +77,12 @@ import android.view.View.OnTouchListener;
 import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.app.Presentation;
+import android.hardware.display.DisplayManager;
 
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -137,6 +142,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean waitingForAllModifiersUp = false;
     private int specialKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     private StreamView streamView;
+    private StreamView streamViewSecondary;
+    private StreamView activitySecondaryView;
+    private LinearLayout streamContainer;
+    private DualDisplayLayout dualDisplay;
+    private DualDisplayPresentation secondaryPresentation;
+    private boolean primarySurfaceReady;
+    private boolean secondarySurfaceReady;
     private long lastAbsTouchUpTime = 0;
     private long lastAbsTouchDownTime = 0;
     private float lastAbsTouchUpX, lastAbsTouchUpY;
@@ -148,6 +160,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private TextView performanceOverlayView;
 
     private MediaCodecDecoderRenderer decoderRenderer;
+    private MediaCodecDecoderRenderer decoderRendererSecondary;
     private boolean reportedCrash;
 
     private WifiManager.WifiLock highPerfWifiLock;
@@ -180,6 +193,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public static final String EXTRA_PC_NAME = "PcName";
     public static final String EXTRA_APP_HDR = "HDR";
     public static final String EXTRA_SERVER_CERT = "ServerCert";
+    public static final String EXTRA_MAX_VIDEO_STREAMS = "MaxVideoStreams";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -236,7 +250,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         // Listen for non-touch events on the game surface
+        streamContainer = findViewById(R.id.streamContainer);
         streamView = findViewById(R.id.surfaceView);
+        streamViewSecondary = findViewById(R.id.surfaceViewSecondary);
+        activitySecondaryView = streamViewSecondary;
         streamView.setOnGenericMotionListener(this);
         streamView.setOnKeyListener(this);
         streamView.setInputCallbacks(this);
@@ -393,6 +410,37 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 glPrefs.glRenderer,
                 this);
 
+        int hostMaxVideoStreams = getIntent().getIntExtra(EXTRA_MAX_VIDEO_STREAMS, 1);
+        dualDisplay = DualDisplayLayout.resolve(this, prefConfig, hostMaxVideoStreams);
+        if (dualDisplay.wantsSecondStream()) {
+            decoderRendererSecondary = new MediaCodecDecoderRenderer(
+                    this,
+                    prefConfig,
+                    new CrashListener() {
+                        @Override
+                        public void notifyCrash(Exception e) {
+                            LimeLog.warning("Secondary decoder crashed; dropping the second display");
+                            hideSecondaryVideo();
+                        }
+                    },
+                    0,
+                    connMgr.isActiveNetworkMetered(),
+                    false,
+                    glPrefs.glRenderer,
+                    this);
+            dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
+                    prefConfig.width, prefConfig.height);
+            if (dualDisplay.effective == DualDisplayLayout.Mode.DUAL_PANEL && dualDisplay.secondaryDisplay != null) {
+                secondaryPresentation = new DualDisplayPresentation(this, dualDisplay.secondaryDisplay);
+                secondaryPresentation.show();
+                streamViewSecondary = secondaryPresentation.getStreamView();
+            }
+        }
+        else {
+            dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
+                    prefConfig.width, prefConfig.height);
+        }
+
         // Don't stream HDR if the decoder can't support it
         if (willStreamHdr && !decoderRenderer.isHevcMain10Hdr10Supported() && !decoderRenderer.isAv1Main10Supported()) {
             willStreamHdr = false;
@@ -462,7 +510,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        StreamConfiguration config = new StreamConfiguration.Builder()
+        StreamConfiguration.Builder config = new StreamConfiguration.Builder()
                 .setResolution(prefConfig.width, prefConfig.height)
                 .setLaunchRefreshRate(prefConfig.fps)
                 .setRefreshRate(chosenFrameRate)
@@ -478,13 +526,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setAudioConfiguration(prefConfig.audioConfiguration)
                 .setColorSpace(decoderRenderer.getPreferredColorSpace())
                 .setColorRange(decoderRenderer.getPreferredColorRange())
-                .setPersistGamepadsAfterDisconnect(!prefConfig.multiController)
-                .build();
+                .setPersistGamepadsAfterDisconnect(!prefConfig.multiController);
+
+        if (dualDisplay.wantsSecondStream()) {
+            config.setSecondaryVideo(dualDisplay.width1, dualDisplay.height1, chosenFrameRate, dualDisplay.bitrate1);
+        }
+
+        StreamConfiguration streamConfig = config.build();
 
         // Initialize the connection
         conn = new NvConnection(getApplicationContext(),
                 new ComputerDetails.AddressTuple(host, port),
-                httpsPort, uniqueId, config,
+                httpsPort, uniqueId, streamConfig,
                 PlatformBinding.getCryptoProvider(this), serverCert);
         controllerHandler = new ControllerHandler(this, conn, this, prefConfig);
         keyboardTranslator = new KeyboardTranslator();
@@ -507,7 +560,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         if (prefConfig.onscreenController) {
             // create virtual onscreen controller
             virtualController = new VirtualController(controllerHandler,
-                    (FrameLayout)streamView.getParent(),
+                    (FrameLayout) findViewById(android.R.id.content),
                     this);
             virtualController.refreshLayout();
             virtualController.show();
@@ -533,6 +586,36 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // The connection will be started when the surface gets created
         streamView.getHolder().addCallback(this);
+        if (dualDisplay.wantsSecondStream() && streamViewSecondary != null) {
+            streamViewSecondary.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceCreated(SurfaceHolder holder) {
+                    applySurfaceFrameRate(holder);
+                }
+
+                @Override
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                    secondarySurfaceReady = true;
+                    maybeStartConnection();
+                }
+
+                @Override
+                public void surfaceDestroyed(SurfaceHolder holder) {
+                    secondarySurfaceReady = false;
+                    if (decoderRendererSecondary != null) {
+                        decoderRendererSecondary.prepareForStop();
+                    }
+                }
+            });
+            // Presentation.show() can create the surface before addCallback.
+            Surface secondarySurface = streamViewSecondary.getHolder().getSurface();
+            if (secondarySurface != null && secondarySurface.isValid()) {
+                secondarySurfaceReady = true;
+            }
+        }
+        else {
+            secondarySurfaceReady = true;
+        }
     }
 
     private void setPreferredOrientationForCurrentDisplay() {
@@ -2503,20 +2586,83 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     @Override
+    public void secondaryVideoEnded() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                displayTransientMessage(getResources().getString(R.string.conn_secondary_video_ended));
+                hideSecondaryVideo();
+            }
+        });
+    }
+
+    private void hideSecondaryVideo() {
+        if (streamViewSecondary != null) {
+            streamViewSecondary.setVisibility(View.GONE);
+        }
+        if (secondaryPresentation != null) {
+            secondaryPresentation.dismiss();
+            secondaryPresentation = null;
+        }
+        dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
+                prefConfig.width, prefConfig.height);
+    }
+
+    private void applySurfaceFrameRate(SurfaceHolder holder) {
+        float desiredFrameRate;
+
+        if (mayReduceRefreshRate() || desiredRefreshRate < prefConfig.fps) {
+            desiredFrameRate = prefConfig.fps;
+        }
+        else {
+            desiredFrameRate = desiredRefreshRate;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            holder.getSurface().setFrameRate(desiredFrameRate,
+                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
+                    Surface.CHANGE_FRAME_RATE_ALWAYS);
+        }
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            holder.getSurface().setFrameRate(desiredFrameRate,
+                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
+            holder.getSurface().setProducerThrottlingEnabled(false);
+        }
+    }
+
+    private void maybeStartConnection() {
+        if (attemptedConnection) {
+            return;
+        }
+        if (!primarySurfaceReady) {
+            return;
+        }
+        if (dualDisplay.wantsSecondStream() && !secondarySurfaceReady) {
+            return;
+        }
+
+        attemptedConnection = true;
+        UiHelper.notifyStreamConnecting(Game.this);
+        decoderRenderer.setRenderTarget(streamView.getHolder());
+        if (decoderRendererSecondary != null && streamViewSecondary != null) {
+            decoderRendererSecondary.setRenderTarget(streamViewSecondary.getHolder());
+        }
+        conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
+                decoderRenderer, decoderRendererSecondary, Game.this);
+    }
+
+    @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
         if (!surfaceCreated) {
             throw new IllegalStateException("Surface changed before creation!");
         }
 
         if (!attemptedConnection) {
-            attemptedConnection = true;
-
-            // Update GameManager state to indicate we're "loading" while connecting
-            UiHelper.notifyStreamConnecting(Game.this);
-
-            decoderRenderer.setRenderTarget(holder);
-            conn.start(new AndroidAudioRenderer(Game.this, prefConfig.enableAudioFx),
-                    decoderRenderer, Game.this);
+            primarySurfaceReady = true;
+            maybeStartConnection();
         }
     }
 
