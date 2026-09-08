@@ -244,8 +244,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         prefConfig = PreferenceConfiguration.readPreferences(this);
         tombstonePrefs = Game.this.getSharedPreferences("DecoderTombstone", 0);
 
-        // Enter landscape unless we're on a square screen
-        setPreferredOrientationForCurrentDisplay();
+        // Enter landscape unless we're on a square screen. GamePad only fills
+        // this device, so keep the current orientation (portrait on Odin is
+        // closer to a Wii U GamePad than forced 16:9 landscape).
+        if (DualDisplayLayout.parse(prefConfig.dualDisplayMode) == DualDisplayLayout.Mode.GAMEPAD_ONLY) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_USER);
+        }
+        else {
+            setPreferredOrientationForCurrentDisplay();
+        }
 
         if (prefConfig.stretchVideo || shouldIgnoreInsetsForResolution(prefConfig.width, prefConfig.height)) {
             // Allow the activity to layout under notches if the fill-screen option
@@ -427,6 +434,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         primaryDisplayId = currentDisplayId(this);
         LimeLog.info("Dual display requested=" + dualDisplay.requested
                 + " effective=" + dualDisplay.effective
+                + " stack=" + dualDisplay.stackLayout
+                + " secondRes=" + dualDisplay.width1 + "x" + dualDisplay.height1
                 + " hostMaxVideoStreams=" + hostMaxVideoStreams);
         if (dualDisplay.wantsSecondStream()) {
             decoderRendererSecondary = new MediaCodecDecoderRenderer(
@@ -543,9 +552,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setPersistGamepadsAfterDisconnect(!prefConfig.multiController);
 
         if (dualDisplay.wantsGamepadAsPrimary()) {
-            // Keep the user's Moonlight resolution; only retarget capture to the
-            // host GamePad / virtual output (x-ml-video[0].source=secondary).
+            // Capture the host GamePad display as video/0 at the GamePad /
+            // second-screen resolution (auto-detect = this panel, so Odin fills).
+            config.setResolution(dualDisplay.width1, dualDisplay.height1);
             config.setPrimaryFromSecondaryDisplay(true);
+            LimeLog.info("GamePad-only stream " + dualDisplay.width1 + "x" + dualDisplay.height1);
         }
         if (dualDisplay.wantsSecondStream()) {
             config.setSecondaryVideo(dualDisplay.width1, dualDisplay.height1, chosenFrameRate, dualDisplay.bitrate1);

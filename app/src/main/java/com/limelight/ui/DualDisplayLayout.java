@@ -1,6 +1,7 @@
 package com.limelight.ui;
 
 import android.app.Activity;
+import android.content.pm.ActivityInfo;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.util.DisplayMetrics;
@@ -20,6 +21,10 @@ import com.limelight.preferences.PreferenceConfiguration;
  * single-screen handheld (AYN Odin) that should show the virtual GamePad
  * display rather than the TV. Dual-panel and stacked are alternate layouts
  * of the same two GameStream videos; they are not combined.
+ *
+ * Second-screen resolution auto-detects the other Android panel, or this
+ * device's current display for GamePad-only / stacked. The TV stream stays
+ * on Moonlight's resolution setting.
  */
 public class DualDisplayLayout {
     public enum Mode {
@@ -30,17 +35,28 @@ public class DualDisplayLayout {
         GAMEPAD_ONLY
     }
 
+    public enum StackLayout {
+        TV_TOP,
+        GAMEPAD_TOP,
+        SIDE_TV,
+        SIDE_GAMEPAD,
+        LARGE_TV,
+        LARGE_GAMEPAD
+    }
+
     public final Mode requested;
     public final Mode effective;
+    public final StackLayout stackLayout;
     public final Display secondaryDisplay;
     public final int width1;
     public final int height1;
     public final int bitrate1;
 
-    private DualDisplayLayout(Mode requested, Mode effective, Display secondaryDisplay,
-                              int width1, int height1, int bitrate1) {
+    private DualDisplayLayout(Mode requested, Mode effective, StackLayout stackLayout,
+                              Display secondaryDisplay, int width1, int height1, int bitrate1) {
         this.requested = requested;
         this.effective = effective;
+        this.stackLayout = stackLayout;
         this.secondaryDisplay = secondaryDisplay;
         this.width1 = width1;
         this.height1 = height1;
@@ -75,6 +91,25 @@ public class DualDisplayLayout {
         return Mode.AUTO;
     }
 
+    public static StackLayout parseStackLayout(String value) {
+        if ("gamepad_top".equals(value)) {
+            return StackLayout.GAMEPAD_TOP;
+        }
+        if ("side_tv".equals(value)) {
+            return StackLayout.SIDE_TV;
+        }
+        if ("side_gamepad".equals(value)) {
+            return StackLayout.SIDE_GAMEPAD;
+        }
+        if ("large_tv".equals(value)) {
+            return StackLayout.LARGE_TV;
+        }
+        if ("large_gamepad".equals(value)) {
+            return StackLayout.LARGE_GAMEPAD;
+        }
+        return StackLayout.TV_TOP;
+    }
+
     public static DualDisplayLayout resolve(Activity activity, PreferenceConfiguration prefs,
                                             int hostMaxVideoStreams) {
         Mode requested = parse(prefs.dualDisplayMode);
@@ -97,45 +132,117 @@ public class DualDisplayLayout {
             secondary = null;
         }
 
-        int width1;
-        int height1;
-        if (effective == Mode.DUAL_PANEL && secondary != null) {
-            int[] size = displaySize(secondary);
-            width1 = size[0];
-            height1 = size[1];
-        }
-        else {
-            // Cemu GamePad-sized default; readable under a 16:9 TV pane on a phone.
-            width1 = 1280;
-            height1 = 720;
+        int[] size = resolveSecondSize(activity, prefs, effective, secondary);
+        int width1 = size[0];
+        int height1 = size[1];
+        if (width1 % 2 != 0) {
+            width1 &= ~1;
         }
         if (height1 % 2 != 0) {
             height1 &= ~1;
         }
         int bitrate1 = Math.max(2000, prefs.bitrate / 4);
-        return new DualDisplayLayout(requested, effective, secondary, width1, height1, bitrate1);
+        return new DualDisplayLayout(requested, effective, parseStackLayout(prefs.stackLayout),
+                secondary, width1, height1, bitrate1);
     }
 
     public void apply(LinearLayout streamContainer, StreamView primary, StreamView secondaryView,
                       int primaryWidth, int primaryHeight) {
-        if (effective == Mode.STACKED) {
-            streamContainer.setOrientation(LinearLayout.VERTICAL);
-            streamContainer.setGravity(Gravity.CENTER);
-            setWeighted(primary, 5);
-            setWeighted(secondaryView, 3);
-            secondaryView.setVisibility(View.VISIBLE);
-            primary.setDesiredAspectRatio((double) primaryWidth / Math.max(1, primaryHeight));
-            secondaryView.setDesiredAspectRatio((double) width1 / Math.max(1, height1));
-        }
-        else {
+        if (effective != Mode.STACKED) {
             setMatchParent(primary);
             secondaryView.setVisibility(View.GONE);
+            return;
+        }
+
+        boolean vertical = stackLayout == StackLayout.TV_TOP ||
+                stackLayout == StackLayout.GAMEPAD_TOP ||
+                stackLayout == StackLayout.LARGE_TV ||
+                stackLayout == StackLayout.LARGE_GAMEPAD;
+        boolean gamepadFirst = stackLayout == StackLayout.GAMEPAD_TOP ||
+                stackLayout == StackLayout.SIDE_GAMEPAD ||
+                stackLayout == StackLayout.LARGE_GAMEPAD;
+        int tvWeight = 5;
+        int gpWeight = 3;
+        if (stackLayout == StackLayout.SIDE_TV || stackLayout == StackLayout.SIDE_GAMEPAD) {
+            tvWeight = 1;
+            gpWeight = 1;
+        }
+        else if (stackLayout == StackLayout.LARGE_TV) {
+            tvWeight = 7;
+            gpWeight = 2;
+        }
+        else if (stackLayout == StackLayout.LARGE_GAMEPAD) {
+            tvWeight = 2;
+            gpWeight = 7;
+        }
+
+        streamContainer.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        streamContainer.setGravity(Gravity.CENTER);
+        setWeighted(primary, tvWeight, vertical);
+        setWeighted(secondaryView, gpWeight, vertical);
+        secondaryView.setVisibility(View.VISIBLE);
+        primary.setDesiredAspectRatio((double) primaryWidth / Math.max(1, primaryHeight));
+        secondaryView.setDesiredAspectRatio((double) width1 / Math.max(1, height1));
+
+        streamContainer.removeView(primary);
+        streamContainer.removeView(secondaryView);
+        if (gamepadFirst) {
+            streamContainer.addView(secondaryView);
+            streamContainer.addView(primary);
+        }
+        else {
+            streamContainer.addView(primary);
+            streamContainer.addView(secondaryView);
         }
     }
 
-    private static void setWeighted(StreamView view, int weight) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, weight);
+    private static int[] resolveSecondSize(Activity activity, PreferenceConfiguration prefs,
+                                           Mode effective, Display secondary) {
+        String spec = prefs.secondScreenRes;
+        if (spec == null || spec.isEmpty() || "auto".equals(spec)) {
+            if (effective == Mode.DUAL_PANEL && secondary != null) {
+                return displaySize(secondary);
+            }
+            return activityDisplaySize(activity);
+        }
+        if ("stream".equals(spec)) {
+            return new int[] { prefs.width, prefs.height };
+        }
+        int x = spec.indexOf('x');
+        if (x > 0 && x < spec.length() - 1) {
+            try {
+                int w = Integer.parseInt(spec.substring(0, x));
+                int h = Integer.parseInt(spec.substring(x + 1));
+                if (w > 0 && h > 0) {
+                    return new int[] { w, h };
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return activityDisplaySize(activity);
+    }
+
+    private static int[] activityDisplaySize(Activity activity) {
+        Display display = activity.getWindowManager().getDefaultDisplay();
+        DisplayMetrics metrics = new DisplayMetrics();
+        display.getRealMetrics(metrics);
+        int width = Math.max(2, metrics.widthPixels);
+        int height = Math.max(2, metrics.heightPixels);
+        if (activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE ||
+                activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
+            if (height > width) {
+                int tmp = width;
+                width = height;
+                height = tmp;
+            }
+        }
+        return new int[] { width, height };
+    }
+
+    private static void setWeighted(StreamView view, int weight, boolean vertical) {
+        LinearLayout.LayoutParams params = vertical ?
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, weight) :
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight);
         view.setLayoutParams(params);
     }
 
