@@ -9,7 +9,8 @@ Settings → Dual display:
 - **Auto** — two Android displays (AYN Thor) → TV on the default panel, GamePad on the other. One panel → stacked.
 - **Dual panel** — force the second Android display (falls back to stacked).
 - **Stacked** — both streams on one screen (phone).
-- **Primary only** — stock single stream.
+- **Primary only** — stock single stream of the TV.
+- **GamePad only (Odin)** — one stream of the virtual GamePad display, fullscreen. Does not encode the TV. Use this on a single-screen handheld.
 
 Debug APK id: `com.fangoh.moonlight.debug` (not official Moonlight).
 

@@ -403,7 +403,8 @@ public class MoonBridge {
                                               int videoCapabilities,
                                               int colorSpace, int colorRange,
                                               int enableVideoStream1,
-                                              int width1, int height1, int fps1, int bitrate1);
+                                              int width1, int height1, int fps1, int bitrate1,
+                                              int primaryFromSecondaryDisplay);
 
     public static native void stopConnection();
 

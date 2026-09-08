@@ -579,7 +579,8 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jint videoCapabilities,
                                                            jint colorSpace, jint colorRange,
                                                            jint enableVideoStream1,
-                                                           jint width1, jint height1, jint fps1, jint bitrate1) {
+                                                           jint width1, jint height1, jint fps1, jint bitrate1,
+                                                           jint primaryFromSecondaryDisplay) {
     SERVER_INFORMATION serverInfo = {
             .address = (*env)->GetStringUTFChars(env, address, 0),
             .serverInfoAppVersion = (*env)->GetStringUTFChars(env, appVersion, 0),
@@ -605,6 +606,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
             .height1 = height1,
             .fps1 = fps1,
             .bitrate1 = bitrate1,
+            .primaryFromSecondaryDisplay = primaryFromSecondaryDisplay,
     };
 
     jbyte* riAesKeyBuf = (*env)->GetByteArrayElements(env, riAesKey, NULL);

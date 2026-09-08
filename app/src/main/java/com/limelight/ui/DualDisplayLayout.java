@@ -15,15 +15,17 @@ import com.limelight.preferences.PreferenceConfiguration;
  * Picks how two Sunshine DS video streams are shown.
  *
  * Auto uses a second Android display when one exists (AYN Thor and similar
- * two-panel devices). A phone or other single-screen device stacks both
- * streams on one panel so the TV and GamePad are visible at once.
+ * two-panel devices). A phone stacks both streams. GamePad only is for a
+ * single-screen handheld (AYN Odin) that should show the virtual GamePad
+ * display rather than the TV.
  */
 public class DualDisplayLayout {
     public enum Mode {
         AUTO,
         DUAL_PANEL,
         STACKED,
-        PRIMARY_ONLY
+        PRIMARY_ONLY,
+        GAMEPAD_ONLY
     }
 
     public final Mode requested;
@@ -47,6 +49,14 @@ public class DualDisplayLayout {
         return effective == Mode.DUAL_PANEL || effective == Mode.STACKED;
     }
 
+    /**
+     * Odin / single-screen GamePad: one GameStream video slot, capturing the
+     * host's second display (Cemu/Azahar panel) instead of the TV.
+     */
+    public boolean wantsGamepadAsPrimary() {
+        return effective == Mode.GAMEPAD_ONLY;
+    }
+
     public static Mode parse(String value) {
         if ("dual_panel".equals(value)) {
             return Mode.DUAL_PANEL;
@@ -56,6 +66,9 @@ public class DualDisplayLayout {
         }
         if ("primary_only".equals(value)) {
             return Mode.PRIMARY_ONLY;
+        }
+        if ("gamepad_only".equals(value)) {
+            return Mode.GAMEPAD_ONLY;
         }
         return Mode.AUTO;
     }
@@ -71,7 +84,13 @@ public class DualDisplayLayout {
         if (requested == Mode.DUAL_PANEL && secondary == null) {
             effective = Mode.STACKED;
         }
-        if (hostMaxVideoStreams < 2 || effective == Mode.PRIMARY_ONLY) {
+        if (effective == Mode.GAMEPAD_ONLY) {
+            // One GameStream slot capturing the host GamePad display. MaxVideoStreams
+            // is the video/1 capability; do not require it here or an Odin client
+            // whose intent extra is missing silently streams the TV instead.
+            secondary = null;
+        }
+        else if (hostMaxVideoStreams < 2 || effective == Mode.PRIMARY_ONLY) {
             effective = Mode.PRIMARY_ONLY;
             secondary = null;
         }

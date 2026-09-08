@@ -29,6 +29,7 @@ public class StreamConfiguration {
     private int colorSpace;
     private boolean persistGamepadsAfterDisconnect;
     private boolean enableVideoStream1;
+    private boolean primaryFromSecondaryDisplay;
     private int width1, height1, fps1, bitrate1;
 
     public static class Builder {
@@ -139,6 +140,14 @@ public class StreamConfiguration {
             return this;
         }
 
+        /**
+         * Capture the host's GamePad / second display as video/0 (Odin).
+         */
+        public StreamConfiguration.Builder setPrimaryFromSecondaryDisplay(boolean enable) {
+            config.primaryFromSecondaryDisplay = enable;
+            return this;
+        }
+
         public StreamConfiguration build() {
             return config;
         }
@@ -235,6 +244,10 @@ public class StreamConfiguration {
 
     public boolean getEnableVideoStream1() {
         return enableVideoStream1;
+    }
+
+    public boolean getPrimaryFromSecondaryDisplay() {
+        return primaryFromSecondaryDisplay;
     }
 
     public int getWidth1() {

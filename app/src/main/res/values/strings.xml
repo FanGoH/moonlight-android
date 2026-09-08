@@ -156,11 +156,12 @@
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_checkbox_stretch_video">Stretch video to full-screen</string>
     <string name="title_dual_display">Dual display</string>
-    <string name="summary_dual_display">Stream both Sunshine DS displays. Auto uses a second Android panel (Thor) when present, otherwise stacks TV and GamePad on one screen.</string>
+    <string name="summary_dual_display">Auto uses a second Android panel (Thor) when present, otherwise stacks TV and GamePad. GamePad only is for a single-screen handheld (Odin) that should show the virtual GamePad display, not the TV.</string>
     <string name="dual_display_auto">Auto (two panels or stacked)</string>
     <string name="dual_display_dual_panel">Two panels (Thor / extra display)</string>
     <string name="dual_display_stacked">Stack both on this screen</string>
     <string name="dual_display_primary_only">Primary display only</string>
+    <string name="dual_display_gamepad_only">GamePad only (Odin)</string>
     <string name="conn_secondary_video_ended">Second display stream ended. Continuing with the TV display.</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
