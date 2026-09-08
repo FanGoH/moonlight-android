@@ -1635,6 +1635,37 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 && screenY >= loc[1] && screenY < loc[1] + stream.getHeight();
     }
 
+    /**
+     * Dual-panel Presentations live on another Android display. {@link View#getLocationOnScreen()}
+     * is per-display (both origins are 0,0), so a global hit-test treats the left side of the
+     * 1920-wide top panel as the 1080-wide bottom stream.
+     */
+    private static boolean viewsOnSameDisplay(View a, View b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            Display da = a.getDisplay();
+            Display db = b.getDisplay();
+            if (da == null || db == null) {
+                return false;
+            }
+            return da.getDisplayId() == db.getDisplayId();
+        }
+        return true;
+    }
+
+    private boolean isSecondaryStreamTouchView(View view) {
+        if (view == null || streamViewSecondary == null) {
+            return false;
+        }
+        if (view == streamViewSecondary) {
+            return true;
+        }
+        return secondaryPresentation != null &&
+                view == secondaryPresentation.getBackgroundTouchView();
+    }
+
     private static final class TouchTarget {
         final View stream;
         final TouchContext[] contexts;
@@ -1651,26 +1682,38 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
     }
 
+    private TouchTarget touchTargetForStream(View stream, TouchContext[] contexts, int displayIndex,
+                                             View fromView, float localX, float localY) {
+        int[] fromLoc = new int[2];
+        int[] streamLoc = new int[2];
+        if (fromView != null) {
+            fromView.getLocationOnScreen(fromLoc);
+        }
+        stream.getLocationOnScreen(streamLoc);
+        return new TouchTarget(stream, contexts, displayIndex,
+                (int)(localX + fromLoc[0] - streamLoc[0]),
+                (int)(localY + fromLoc[1] - streamLoc[1]));
+    }
+
     private TouchTarget resolveTouchTarget(View view, float localX, float localY) {
-        float screenX = localX;
-        float screenY = localY;
-        if (view != null) {
-            int[] origin = new int[2];
-            view.getLocationOnScreen(origin);
-            screenX = localX + origin[0];
-            screenY = localY + origin[1];
+        if (touchContextMapSecondary[0] != null && streamViewSecondary != null) {
+            if (isSecondaryStreamTouchView(view)) {
+                return touchTargetForStream(streamViewSecondary, touchContextMapSecondary, 1,
+                        view, localX, localY);
+            }
+            // Stacked mode: both streams share one display, so screen-space hit-testing is valid.
+            if (view != null && viewsOnSameDisplay(view, streamViewSecondary)) {
+                int[] origin = new int[2];
+                view.getLocationOnScreen(origin);
+                float screenX = localX + origin[0];
+                float screenY = localY + origin[1];
+                if (streamContainsScreenPoint(streamViewSecondary, screenX, screenY)) {
+                    return touchTargetForStream(streamViewSecondary, touchContextMapSecondary, 1,
+                            view, localX, localY);
+                }
+            }
         }
-        if (touchContextMapSecondary[0] != null &&
-                streamContainsScreenPoint(streamViewSecondary, screenX, screenY)) {
-            int[] loc = new int[2];
-            streamViewSecondary.getLocationOnScreen(loc);
-            return new TouchTarget(streamViewSecondary, touchContextMapSecondary, 1,
-                    (int)(screenX - loc[0]), (int)(screenY - loc[1]));
-        }
-        int[] loc = new int[2];
-        streamView.getLocationOnScreen(loc);
-        return new TouchTarget(streamView, touchContextMap, 0,
-                (int)(screenX - loc[0]), (int)(screenY - loc[1]));
+        return touchTargetForStream(streamView, touchContextMap, 0, view, localX, localY);
     }
 
     @Override
