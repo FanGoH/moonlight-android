@@ -42,10 +42,12 @@ import com.limelight.utils.UiHelper;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.ActivityOptions;
 import android.app.PictureInPictureParams;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
@@ -62,6 +64,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Rational;
 import android.view.Display;
 import android.view.InputDevice;
@@ -85,6 +88,7 @@ import android.app.Presentation;
 import android.hardware.display.DisplayManager;
 
 import java.io.ByteArrayInputStream;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.security.cert.CertificateException;
@@ -148,6 +152,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private LinearLayout streamContainer;
     private DualDisplayLayout dualDisplay;
     private DualDisplayPresentation secondaryPresentation;
+    private int primaryDisplayId = Display.DEFAULT_DISPLAY;
+    private long lastPrimaryDisplayBounceMs;
+    private boolean restoringSecondaryPresentation;
+    private boolean bouncingToPrimaryDisplay;
+    private boolean restorePresentationAfterBounce;
+    private static WeakReference<Game> activeStream = new WeakReference<>(null);
     private boolean primarySurfaceReady;
     private boolean secondarySurfaceReady;
     private long lastAbsTouchUpTime = 0;
@@ -414,6 +424,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         int hostMaxVideoStreams = getIntent().getIntExtra(EXTRA_MAX_VIDEO_STREAMS, 1);
         dualDisplay = DualDisplayLayout.resolve(this, prefConfig, hostMaxVideoStreams);
+        primaryDisplayId = currentDisplayId(this);
         LimeLog.info("Dual display requested=" + dualDisplay.requested
                 + " effective=" + dualDisplay.effective
                 + " hostMaxVideoStreams=" + hostMaxVideoStreams);
@@ -436,11 +447,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
                     prefConfig.width, prefConfig.height);
             if (dualDisplay.effective == DualDisplayLayout.Mode.DUAL_PANEL && dualDisplay.secondaryDisplay != null) {
-                secondaryPresentation = new DualDisplayPresentation(this, dualDisplay.secondaryDisplay);
-                secondaryPresentation.show();
-                streamViewSecondary = secondaryPresentation.getStreamView();
-                bindPointerInput(streamViewSecondary);
-                bindPointerInput(secondaryPresentation.getBackgroundTouchView());
+                showSecondaryPresentation(dualDisplay.secondaryDisplay);
             }
         }
         else {
@@ -597,26 +604,6 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // The connection will be started when the surface gets created
         streamView.getHolder().addCallback(this);
         if (dualDisplay.wantsSecondStream() && streamViewSecondary != null) {
-            streamViewSecondary.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override
-                public void surfaceCreated(SurfaceHolder holder) {
-                    applySurfaceFrameRate(holder);
-                }
-
-                @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                    secondarySurfaceReady = true;
-                    maybeStartConnection();
-                }
-
-                @Override
-                public void surfaceDestroyed(SurfaceHolder holder) {
-                    secondarySurfaceReady = false;
-                    if (decoderRendererSecondary != null) {
-                        decoderRendererSecondary.prepareForStop();
-                    }
-                }
-            });
             // Presentation.show() can create the surface before addCallback.
             Surface secondarySurface = streamViewSecondary.getHolder().getSurface();
             if (secondarySurface != null && secondarySurface.isValid()) {
@@ -673,6 +660,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Set requested orientation for possible new screen size
         setPreferredOrientationForCurrentDisplay();
+        maybeHandleDualPanelDisplayChange();
 
         if (virtualController != null) {
             // Refresh layout of OSC for possible new screen size
@@ -842,6 +830,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // With Android native pointer capture, capture is lost when focus is lost,
         // so it must be requested again when focus is regained.
         inputCaptureProvider.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            maybeHandleDualPanelDisplayChange();
+        }
     }
 
     private boolean isRefreshRateEqualMatch(float refreshRate) {
@@ -1151,6 +1142,18 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         // Destroy the capture provider
         inputCaptureProvider.destroy();
+        if (activeStream.get() == this) {
+            activeStream = new WeakReference<>(null);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (currentDisplayId(this) != primaryDisplayId) {
+            bounceBackToPrimaryDisplayIfNeeded();
+        }
     }
 
     @Override
@@ -1173,6 +1176,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     protected void onStop() {
+        if (bouncingToPrimaryDisplay) {
+            super.onStop();
+            return;
+        }
         dismissSecondaryPresentation();
         super.onStop();
 
@@ -2426,6 +2433,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private void stopConnection() {
         if (connecting || connected) {
             connecting = connected = false;
+            if (activeStream.get() == this) {
+                activeStream = new WeakReference<>(null);
+            }
             updatePipAutoEnter();
 
             controllerHandler.stop();
@@ -2611,6 +2621,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                 connected = true;
                 connecting = false;
+                activeStream = new WeakReference<>(Game.this);
                 updatePipAutoEnter();
 
                 // Hide the mouse cursor now after a short delay.
@@ -2712,14 +2723,205 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private void dismissSecondaryPresentation() {
-        if (secondaryPresentation != null) {
+        DualDisplayPresentation presentation = secondaryPresentation;
+        secondaryPresentation = null;
+        if (presentation != null) {
             try {
-                secondaryPresentation.dismiss();
+                presentation.dismiss();
             } catch (IllegalArgumentException e) {
                 // Already dismissed.
             }
-            secondaryPresentation = null;
         }
+    }
+
+    public static boolean shouldRestoreDualPanelFrom(Activity activity) {
+        Game game = activeStream.get();
+        if (game == null || !game.connected || game.isFinishing()) {
+            return false;
+        }
+        if (game.dualDisplay == null ||
+                game.dualDisplay.effective != DualDisplayLayout.Mode.DUAL_PANEL) {
+            return false;
+        }
+        Display secondary = game.secondaryStreamDisplay();
+        return secondary != null && currentDisplayId(activity) == secondary.getDisplayId();
+    }
+
+    public static void restoreDualPanelFromLauncher() {
+        final Game game = activeStream.get();
+        if (game == null) {
+            return;
+        }
+        game.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                game.bounceBackToPrimaryDisplayIfNeeded();
+                game.restoreSecondaryPresentation();
+            }
+        });
+    }
+
+    private static int currentDisplayId(Activity activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Display display = activity.getDisplay();
+            if (display != null) {
+                return display.getDisplayId();
+            }
+        }
+        return activity.getWindowManager().getDefaultDisplay().getDisplayId();
+    }
+
+    private Display secondaryStreamDisplay() {
+        if (dualDisplay != null && dualDisplay.secondaryDisplay != null &&
+                dualDisplay.secondaryDisplay.isValid() &&
+                dualDisplay.secondaryDisplay.getDisplayId() != primaryDisplayId) {
+            return dualDisplay.secondaryDisplay;
+        }
+        DisplayManager manager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
+        if (manager != null) {
+            for (Display display : manager.getDisplays()) {
+                if (display.isValid() && display.getDisplayId() != primaryDisplayId) {
+                    return display;
+                }
+            }
+        }
+        return DualDisplayLayout.findSecondaryDisplay(this);
+    }
+
+    private void maybeHandleDualPanelDisplayChange() {
+        if (currentDisplayId(this) != primaryDisplayId) {
+            bounceBackToPrimaryDisplayIfNeeded();
+            return;
+        }
+        bouncingToPrimaryDisplay = false;
+        if (restorePresentationAfterBounce) {
+            restorePresentationAfterBounce = false;
+            restoreSecondaryPresentation();
+        }
+    }
+
+    private void bounceBackToPrimaryDisplayIfNeeded() {
+        if (dualDisplay == null || dualDisplay.effective != DualDisplayLayout.Mode.DUAL_PANEL) {
+            return;
+        }
+        if (currentDisplayId(this) == primaryDisplayId) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            restoreSecondaryPresentation();
+            return;
+        }
+        long now = SystemClock.uptimeMillis();
+        if (now - lastPrimaryDisplayBounceMs < 1000) {
+            return;
+        }
+        lastPrimaryDisplayBounceMs = now;
+        bouncingToPrimaryDisplay = true;
+        restorePresentationAfterBounce = true;
+        ActivityOptions options = ActivityOptions.makeBasic();
+        options.setLaunchDisplayId(primaryDisplayId);
+        Intent intent = new Intent(this, Game.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        try {
+            startActivity(intent, options.toBundle());
+        } catch (RuntimeException e) {
+            LimeLog.warning("Unable to move the stream back to the primary display");
+            bouncingToPrimaryDisplay = false;
+            restoreSecondaryPresentation();
+        }
+    }
+
+    private void restoreSecondaryPresentation() {
+        if (!connected || dualDisplay == null ||
+                dualDisplay.effective != DualDisplayLayout.Mode.DUAL_PANEL) {
+            return;
+        }
+        if (secondaryPresentation != null && secondaryPresentation.isShowing()) {
+            return;
+        }
+        Display secondary = secondaryStreamDisplay();
+        if (secondary == null) {
+            return;
+        }
+        showSecondaryPresentation(secondary);
+    }
+
+    private void showSecondaryPresentation(Display display) {
+        if (display == null || !display.isValid()) {
+            return;
+        }
+        restoringSecondaryPresentation = true;
+        if (secondaryPresentation != null && secondaryPresentation.isShowing()) {
+            restoringSecondaryPresentation = false;
+            return;
+        }
+        dismissSecondaryPresentation();
+        secondaryPresentation = new DualDisplayPresentation(this, display);
+        secondaryPresentation.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+                if (restoringSecondaryPresentation || isFinishing() || !connected) {
+                    return;
+                }
+                streamViewSecondary = null;
+                parkSecondaryDecoder();
+            }
+        });
+        secondaryPresentation.show();
+        streamViewSecondary = secondaryPresentation.getStreamView();
+        bindPointerInput(streamViewSecondary);
+        bindPointerInput(secondaryPresentation.getBackgroundTouchView());
+        bindSecondaryStreamSurface();
+        if (conn != null) {
+            fillTouchContexts(touchContextMapSecondary, streamViewSecondary, 1);
+        }
+        restoringSecondaryPresentation = false;
+    }
+
+    private void bindSecondaryStreamSurface() {
+        if (streamViewSecondary == null) {
+            return;
+        }
+        streamViewSecondary.getHolder().addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                applySurfaceFrameRate(holder);
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                secondarySurfaceReady = true;
+                if (decoderRendererSecondary != null) {
+                    decoderRendererSecondary.setRenderTarget(holder);
+                    if (attemptedConnection && holder.getSurface() != null && holder.getSurface().isValid()) {
+                        decoderRendererSecondary.attachOutputSurface(holder.getSurface());
+                    }
+                }
+                maybeStartConnection();
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                secondarySurfaceReady = false;
+                if (isFinishing() || !connected) {
+                    if (decoderRendererSecondary != null) {
+                        decoderRendererSecondary.prepareForStop();
+                    }
+                }
+                else {
+                    parkSecondaryDecoder();
+                }
+            }
+        });
+    }
+
+    private void parkSecondaryDecoder() {
+        if (decoderRendererSecondary == null) {
+            return;
+        }
+        int width = dualDisplay != null ? dualDisplay.width1 : 1080;
+        int height = dualDisplay != null ? dualDisplay.height1 : 1240;
+        decoderRendererSecondary.parkOutputSurface(width, height);
     }
 
     private void hideSecondaryVideo() {

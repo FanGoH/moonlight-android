@@ -186,6 +186,11 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        if (redirectToDualPanelStream()) {
+            finish();
+            return;
+        }
+
         // Assume we're in the foreground when created to avoid a race
         // between binding to CMS and onResume()
         inForeground = true;
@@ -299,9 +304,22 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         }
     }
 
+    private boolean redirectToDualPanelStream() {
+        if (!Game.shouldRestoreDualPanelFrom(this)) {
+            return false;
+        }
+        Game.restoreDualPanelFromLauncher();
+        return true;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+
+        if (redirectToDualPanelStream()) {
+            finish();
+            return;
+        }
 
         // Display a decoder crash notification if we've returned after a crash
         UiHelper.showDecoderCrashDialog(this);
