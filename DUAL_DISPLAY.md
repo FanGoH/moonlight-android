@@ -37,4 +37,4 @@ Sideload:
 adb install -r app/build/outputs/apk/nonRoot/debug/app-nonRoot-debug.apk
 ```
 
-Thor needs wireless debugging or another install path; this host cannot SSH/ADB to `aynthor` until that is enabled.
+Thor: enable Wireless debugging, then `adb connect IP:PORT` and `adb install -r` this APK.
