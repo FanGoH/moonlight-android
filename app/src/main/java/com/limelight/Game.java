@@ -1163,6 +1163,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             // Ungrab input to prevent further input device notifications
             setInputGrabState(false);
+            // Dual-panel Presentation is a separate window; finish() does not
+            // always tear it down on devices like the Thor, so dismiss it here.
+            dismissSecondaryPresentation();
         }
 
         super.onPause();
@@ -1170,6 +1173,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     protected void onStop() {
+        dismissSecondaryPresentation();
         super.onStop();
 
         SpinnerDialog.closeDialogs(this);
@@ -1323,6 +1327,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
                     // Quit
                     case KeyEvent.KEYCODE_Q:
+                        dismissSecondaryPresentation();
                         finish();
                         break;
 
@@ -2663,14 +2668,22 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         });
     }
 
+    private void dismissSecondaryPresentation() {
+        if (secondaryPresentation != null) {
+            try {
+                secondaryPresentation.dismiss();
+            } catch (IllegalArgumentException e) {
+                // Already dismissed.
+            }
+            secondaryPresentation = null;
+        }
+    }
+
     private void hideSecondaryVideo() {
         if (streamViewSecondary != null) {
             streamViewSecondary.setVisibility(View.GONE);
         }
-        if (secondaryPresentation != null) {
-            secondaryPresentation.dismiss();
-            secondaryPresentation = null;
-        }
+        dismissSecondaryPresentation();
         dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
                 prefConfig.width, prefConfig.height);
     }
