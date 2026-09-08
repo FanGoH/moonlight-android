@@ -15,9 +15,11 @@ import com.limelight.preferences.PreferenceConfiguration;
  * Picks how two Sunshine DS video streams are shown.
  *
  * Auto uses a second Android display when one exists (AYN Thor and similar
- * two-panel devices). A phone stacks both streams. GamePad only is for a
+ * two-panel devices). A phone or a clamshell that only exposes one Display
+ * (Odin 2 Portal) stacks both streams on that screen. GamePad only is for a
  * single-screen handheld (AYN Odin) that should show the virtual GamePad
- * display rather than the TV.
+ * display rather than the TV. Dual-panel and stacked are alternate layouts
+ * of the same two GameStream videos; they are not combined.
  */
 public class DualDisplayLayout {
     public enum Mode {

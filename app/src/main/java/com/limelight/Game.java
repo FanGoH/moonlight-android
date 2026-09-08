@@ -601,10 +601,17 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return;
         }
 
-        // The connection will be started when the surface gets created
-        streamView.getHolder().addCallback(this);
+        // Bind the in-layout second pane *before* the primary callback so
+        // maybeStartConnection() can see secondarySurfaceReady if the primary
+        // surface already exists. Dual-panel already bound in
+        // showSecondaryPresentation(); STACKED (AUTO on a one-display device
+        // such as Odin 2 Portal) never did, so it waited forever on
+        // secondarySurfaceReady and stuck on "Starting connection".
         if (dualDisplay.wantsSecondStream() && streamViewSecondary != null) {
-            // Presentation.show() can create the surface before addCallback.
+            if (secondaryPresentation == null) {
+                bindSecondaryStreamSurface();
+            }
+            // Presentation.show() / first layout can create the surface before addCallback.
             Surface secondarySurface = streamViewSecondary.getHolder().getSurface();
             if (secondarySurface != null && secondarySurface.isValid()) {
                 secondarySurfaceReady = true;
@@ -613,6 +620,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         else {
             secondarySurfaceReady = true;
         }
+        streamView.getHolder().addCallback(this);
     }
 
     private void setPreferredOrientationForCurrentDisplay() {
@@ -2890,7 +2898,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
             @Override
             public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                if (width <= 0 || height <= 0) {
+                    LimeLog.info("Ignoring secondary surfaceChanged " + width + "x" + height);
+                    return;
+                }
                 secondarySurfaceReady = true;
+                LimeLog.info("Secondary stream surface ready " + width + "x" + height);
                 if (decoderRendererSecondary != null) {
                     decoderRendererSecondary.setRenderTarget(holder);
                     if (attemptedConnection && holder.getSurface() != null && holder.getSurface().isValid()) {
@@ -2966,6 +2979,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return;
         }
         if (dualDisplay.wantsSecondStream() && !secondarySurfaceReady) {
+            LimeLog.info("Waiting for secondary stream surface before starting connection");
             return;
         }
 
