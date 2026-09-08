@@ -412,6 +412,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         int hostMaxVideoStreams = getIntent().getIntExtra(EXTRA_MAX_VIDEO_STREAMS, 1);
         dualDisplay = DualDisplayLayout.resolve(this, prefConfig, hostMaxVideoStreams);
+        LimeLog.info("Dual display requested=" + dualDisplay.requested
+                + " effective=" + dualDisplay.effective
+                + " hostMaxVideoStreams=" + hostMaxVideoStreams);
         if (dualDisplay.wantsSecondStream()) {
             decoderRendererSecondary = new MediaCodecDecoderRenderer(
                     this,
@@ -528,6 +531,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 .setColorRange(decoderRenderer.getPreferredColorRange())
                 .setPersistGamepadsAfterDisconnect(!prefConfig.multiController);
 
+        if (dualDisplay.wantsGamepadAsPrimary()) {
+            // Keep the user's Moonlight resolution; only retarget capture to the
+            // host GamePad / virtual output (x-ml-video[0].source=secondary).
+            config.setPrimaryFromSecondaryDisplay(true);
+        }
         if (dualDisplay.wantsSecondStream()) {
             config.setSecondaryVideo(dualDisplay.width1, dualDisplay.height1, chosenFrameRate, dualDisplay.bitrate1);
         }

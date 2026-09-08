@@ -448,7 +448,8 @@ public class NvConnection {
                             context.streamConfig.getWidth1(),
                             context.streamConfig.getHeight1(),
                             context.streamConfig.getFps1(),
-                            context.streamConfig.getBitrate1());
+                            context.streamConfig.getBitrate1(),
+                            context.streamConfig.getPrimaryFromSecondaryDisplay() ? 1 : 0);
                     if (ret != 0) {
                         // LiStartConnection() failed, so the caller is not expected
                         // to stop the connection themselves. We need to release their
