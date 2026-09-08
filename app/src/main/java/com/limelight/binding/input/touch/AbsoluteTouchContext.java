@@ -46,6 +46,7 @@ public class AbsoluteTouchContext implements TouchContext {
     private final NvConnection conn;
     private final int actionIndex;
     private final View targetView;
+    private final int displayIndex;
     private final Handler handler;
 
     private final Runnable leftButtonUpRunnable = new Runnable() {
@@ -68,9 +69,15 @@ public class AbsoluteTouchContext implements TouchContext {
 
     public AbsoluteTouchContext(NvConnection conn, int actionIndex, View view)
     {
+        this(conn, actionIndex, view, 0);
+    }
+
+    public AbsoluteTouchContext(NvConnection conn, int actionIndex, View view, int displayIndex)
+    {
         this.conn = conn;
         this.actionIndex = actionIndex;
         this.targetView = view;
+        this.displayIndex = displayIndex;
         this.handler = new Handler(Looper.getMainLooper());
     }
 
@@ -114,7 +121,7 @@ public class AbsoluteTouchContext implements TouchContext {
         eventX = Math.min(Math.max(eventX, 0), targetView.getWidth());
         eventY = Math.min(Math.max(eventY, 0), targetView.getHeight());
 
-        conn.sendMousePosition((short)eventX, (short)eventY, (short)targetView.getWidth(), (short)targetView.getHeight());
+        conn.sendMousePosition((short)eventX, (short)eventY, (short)targetView.getWidth(), (short)targetView.getHeight(), displayIndex);
     }
 
     @Override
