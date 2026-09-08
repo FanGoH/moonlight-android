@@ -138,6 +138,15 @@
         <item>left</item>
     </string-array>
 
+    <string-array name="stream_fill_names">
+        <item>@string/stream_fill_fit</item>
+        <item>@string/stream_fill_stretch</item>
+    </string-array>
+    <string-array name="stream_fill_values" translatable="false">
+        <item>fit</item>
+        <item>stretch</item>
+    </string-array>
+
     <string-array name="dual_display_names">
         <item>@string/dual_display_auto</item>
         <item>@string/dual_display_dual_panel</item>

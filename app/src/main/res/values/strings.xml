@@ -155,6 +155,12 @@
     <string name="summary_seekbar_bitrate">Increase for better image quality. Decrease to improve performance on slower connections.</string>
     <string name="suffix_seekbar_bitrate_mbps">Mbps</string>
     <string name="title_checkbox_stretch_video">Stretch video to full-screen</string>
+    <string name="title_tv_fill">TV / primary fill</string>
+    <string name="summary_tv_fill">Fit keeps 16:9 with bars. Stretch fills this panel (may distort). Replaces the older stretch-video checkbox when set.</string>
+    <string name="title_gamepad_fill">GamePad / second screen fill</string>
+    <string name="summary_gamepad_fill">Independent of the TV. Stretch scales the 1080p GamePad down to fill Thor’s bottom panel (or the stacked GamePad pane). Fit letterboxes.</string>
+    <string name="stream_fill_fit">Fit (keep aspect)</string>
+    <string name="stream_fill_stretch">Stretch to fill</string>
     <string name="title_dual_display">Dual display</string>
     <string name="summary_dual_display">Auto uses a second Android panel (Thor) when present, otherwise stacks TV and GamePad on this screen. Two panels and stacked are alternate layouts of both streams, not a mix. GamePad only is for a single-screen handheld (Odin) that should show the virtual GamePad display, not the TV.</string>
     <string name="dual_display_auto">Auto (two panels or stacked)</string>

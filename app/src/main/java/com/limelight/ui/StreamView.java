@@ -14,6 +14,25 @@ public class StreamView extends SurfaceView {
         this.desiredAspectRatio = aspectRatio;
     }
 
+    /**
+     * Fit letterboxes the stream; stretch scales the buffer to this view
+     * (same as the TV "Stretch video" checkbox).
+     */
+    public void applyFill(int streamWidth, int streamHeight, boolean stretch) {
+        if (streamWidth <= 0 || streamHeight <= 0) {
+            return;
+        }
+        if (stretch) {
+            desiredAspectRatio = 0;
+            getHolder().setFixedSize(streamWidth, streamHeight);
+        }
+        else {
+            desiredAspectRatio = (double) streamWidth / (double) streamHeight;
+            getHolder().setSizeFromLayout();
+        }
+        requestLayout();
+    }
+
     public void setInputCallbacks(InputCallbacks callbacks) {
         this.inputCallbacks = callbacks;
     }
