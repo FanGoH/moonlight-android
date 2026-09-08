@@ -1,5 +1,6 @@
 package com.limelight.nvstream.http;
 
+import android.net.Uri;
 import android.os.Build;
 
 import java.io.FileNotFoundException;
@@ -72,6 +73,26 @@ public class NvHTTP {
 
     // Print URL and content to logcat on debug builds
     private static boolean verbose = BuildConfig.DEBUG;
+
+    /**
+     * Friendly GameStream client name. Stock Moonlight hardcodes {@code roth}, which makes
+     * every Android client look identical on the host. Send the device model so Sunshine can
+     * name each virtual pad (AYN_Thor vs Odin2_Portal).
+     */
+    public static String moonlightDeviceName() {
+        String model = Build.MODEL;
+        if (model == null || model.isEmpty()) {
+            model = Build.DEVICE;
+        }
+        if (model == null || model.isEmpty()) {
+            return "roth";
+        }
+        return model;
+    }
+
+    private static String encodedDeviceName() {
+        return Uri.encode(moonlightDeviceName());
+    }
 
     private HttpUrl baseUrlHttp;
 
@@ -718,12 +739,12 @@ public class NvHTTP {
 
     String executePairingCommand(String additionalArguments, boolean enableReadTimeout) throws HostHttpResponseException, IOException {
         return openHttpConnectionToString(enableReadTimeout ? httpClientLongConnectTimeout : httpClientLongConnectNoReadTimeout,
-                baseUrlHttp, "pair", "devicename=roth&updateState=1&" + additionalArguments);
+                baseUrlHttp, "pair", "devicename=" + encodedDeviceName() + "&updateState=1&" + additionalArguments);
     }
 
     String executePairingChallenge() throws HostHttpResponseException, IOException {
         return openHttpConnectionToString(httpClientLongConnectTimeout, getHttpsUrl(true),
-                "pair", "devicename=roth&updateState=1&phrase=pairchallenge");
+                "pair", "devicename=" + encodedDeviceName() + "&updateState=1&phrase=pairchallenge");
     }
 
     public void unpair() throws IOException {
@@ -801,6 +822,7 @@ public class NvHTTP {
             "&remoteControllersBitmap=" + context.streamConfig.getAttachedGamepadMask() +
             "&gcmap=" + context.streamConfig.getAttachedGamepadMask() +
             "&gcpersist="+(context.streamConfig.getPersistGamepadsAfterDisconnect() ? 1 : 0) +
+            "&devicename=" + encodedDeviceName() +
             MoonBridge.getLaunchUrlQueryParameters());
         if ((verb.equals("launch") && !getXmlString(xmlStr, "gamesession", true).equals("0") ||
                 (verb.equals("resume") && !getXmlString(xmlStr, "resume", true).equals("0")))) {
