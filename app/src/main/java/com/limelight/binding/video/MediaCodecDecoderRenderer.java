@@ -34,7 +34,9 @@ import android.os.HandlerThread;
 import android.os.Process;
 import android.os.SystemClock;
 import android.util.Range;
+import android.graphics.SurfaceTexture;
 import android.view.Choreographer;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 
 public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements Choreographer.FrameCallback {
@@ -68,6 +70,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private int initialWidth, initialHeight;
     private int videoFormat;
     private SurfaceHolder renderTarget;
+    private SurfaceTexture placeholderTexture;
+    private Surface placeholderSurface;
+    private volatile boolean outputParked;
     private volatile boolean stopping;
     private CrashListener crashListener;
     private boolean reportedCrash;
@@ -271,6 +276,74 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
     public void setRenderTarget(SurfaceHolder renderTarget) {
         this.renderTarget = renderTarget;
+    }
+
+    /**
+     * Keep the codec alive while a dual-panel Presentation is dismissed by
+     * pointing it at a dummy surface. {@link #prepareForStop()} would otherwise
+     * make the second stream unrestorable without a full reconnect.
+     */
+    public void parkOutputSurface(int width, int height) {
+        outputParked = true;
+        ensurePlaceholderSurface(Math.max(width, 1), Math.max(height, 1));
+        switchOutputSurface(placeholderSurface);
+    }
+
+    public void attachOutputSurface(Surface surface) {
+        if (surface == null || !surface.isValid()) {
+            return;
+        }
+        outputParked = false;
+        switchOutputSurface(surface);
+    }
+
+    private void ensurePlaceholderSurface(int width, int height) {
+        if (placeholderTexture == null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                placeholderTexture = new SurfaceTexture(false);
+            }
+            else {
+                placeholderTexture = new SurfaceTexture(0);
+            }
+            placeholderSurface = new Surface(placeholderTexture);
+        }
+        placeholderTexture.setDefaultBufferSize(width, height);
+    }
+
+    private void switchOutputSurface(Surface surface) {
+        if (surface == null || videoDecoder == null) {
+            return;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                videoDecoder.setOutputSurface(surface);
+            }
+            else {
+                codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESET);
+            }
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            LimeLog.warning("setOutputSurface failed; requesting decoder reset");
+            codecRecoveryType.compareAndSet(CR_RECOVERY_TYPE_NONE, CR_RECOVERY_TYPE_RESET);
+        }
+    }
+
+    private Surface currentOutputSurface() {
+        if (renderTarget != null && renderTarget.getSurface() != null && renderTarget.getSurface().isValid()) {
+            return renderTarget.getSurface();
+        }
+        return placeholderSurface;
+    }
+
+    private void releasePlaceholderSurface() {
+        outputParked = false;
+        if (placeholderSurface != null) {
+            placeholderSurface.release();
+            placeholderSurface = null;
+        }
+        if (placeholderTexture != null) {
+            placeholderTexture.release();
+            placeholderTexture = null;
+        }
     }
 
     public MediaCodecDecoderRenderer(Activity activity, PreferenceConfiguration prefs,
@@ -516,7 +589,11 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
         LimeLog.info("Configuring with format: "+format);
 
-        videoDecoder.configure(format, renderTarget.getSurface(), null, 0);
+        Surface output = currentOutputSurface();
+        if (output == null || !output.isValid()) {
+            throw new IllegalStateException("No valid decoder output surface");
+        }
+        videoDecoder.configure(format, output, null, 0);
 
         configuredFormat = format;
 
@@ -835,6 +912,9 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         // Eat decoder exceptions if we're in the process of stopping
         if (stopping) {
             return false;
+        }
+        if (outputParked) {
+            return true;
         }
 
         if (e instanceof CodecException) {
@@ -1186,6 +1266,7 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     public void prepareForStop() {
         // Let the decoding code know to ignore codec exceptions now
         stopping = true;
+        releasePlaceholderSurface();
 
         // Halt the rendering thread
         if (rendererThread != null) {
