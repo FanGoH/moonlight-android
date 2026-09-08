@@ -31,6 +31,8 @@ public class PreferenceConfiguration {
     static final String BITRATE_PREF_STRING = "seekbar_bitrate_kbps";
     private static final String BITRATE_PREF_OLD_STRING = "seekbar_bitrate";
     private static final String STRETCH_PREF_STRING = "checkbox_stretch_video";
+    private static final String TV_FILL_PREF_STRING = "list_tv_fill";
+    private static final String GAMEPAD_FILL_PREF_STRING = "list_gamepad_fill";
     private static final String SOPS_PREF_STRING = "checkbox_enable_sops";
     private static final String DISABLE_TOASTS_PREF_STRING = "checkbox_disable_warnings";
     private static final String HOST_AUDIO_PREF_STRING = "checkbox_host_audio";
@@ -115,6 +117,7 @@ public class PreferenceConfiguration {
     private static final String DEFAULT_DUAL_DISPLAY = "auto";
     private static final String DEFAULT_SECOND_SCREEN_RES = "auto";
     private static final String DEFAULT_STACK_LAYOUT = "tv_top";
+    private static final String DEFAULT_GAMEPAD_FILL = "stretch";
 
     public static final int FRAME_PACING_MIN_LATENCY = 0;
     public static final int FRAME_PACING_BALANCED = 1;
@@ -135,6 +138,7 @@ public class PreferenceConfiguration {
     public int deadzonePercentage;
     public int oscOpacity;
     public boolean stretchVideo, enableSops, playHostAudio, disableWarnings;
+    public boolean stretchSecondScreen;
     public String language;
     public boolean smallIconMode, multiController, usbDriver, flipFaceButtons;
     public boolean onscreenController;
@@ -584,6 +588,12 @@ public class PreferenceConfiguration {
         config.disableWarnings = prefs.getBoolean(DISABLE_TOASTS_PREF_STRING, DEFAULT_DISABLE_TOASTS);
         config.enableSops = prefs.getBoolean(SOPS_PREF_STRING, DEFAULT_SOPS);
         config.stretchVideo = prefs.getBoolean(STRETCH_PREF_STRING, DEFAULT_STRETCH);
+        String tvFill = prefs.getString(TV_FILL_PREF_STRING, null);
+        if (tvFill != null) {
+            config.stretchVideo = "stretch".equals(tvFill);
+        }
+        config.stretchSecondScreen = "stretch".equals(
+                prefs.getString(GAMEPAD_FILL_PREF_STRING, DEFAULT_GAMEPAD_FILL));
         config.playHostAudio = prefs.getBoolean(HOST_AUDIO_PREF_STRING, DEFAULT_HOST_AUDIO);
         config.smallIconMode = prefs.getBoolean(SMALL_ICONS_PREF_STRING, getDefaultSmallMode(context));
         config.multiController = prefs.getBoolean(MULTI_CONTROLLER_PREF_STRING, DEFAULT_MULTI_CONTROLLER);

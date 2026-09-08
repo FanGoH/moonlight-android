@@ -51,9 +51,11 @@ public class DualDisplayLayout {
     public final int width1;
     public final int height1;
     public final int bitrate1;
+    public final boolean stretchSecondary;
 
     private DualDisplayLayout(Mode requested, Mode effective, StackLayout stackLayout,
-                              Display secondaryDisplay, int width1, int height1, int bitrate1) {
+                              Display secondaryDisplay, int width1, int height1, int bitrate1,
+                              boolean stretchSecondary) {
         this.requested = requested;
         this.effective = effective;
         this.stackLayout = stackLayout;
@@ -61,6 +63,7 @@ public class DualDisplayLayout {
         this.width1 = width1;
         this.height1 = height1;
         this.bitrate1 = bitrate1;
+        this.stretchSecondary = stretchSecondary;
     }
 
     public boolean wantsSecondStream() {
@@ -143,7 +146,7 @@ public class DualDisplayLayout {
         }
         int bitrate1 = Math.max(2000, prefs.bitrate / 4);
         return new DualDisplayLayout(requested, effective, parseStackLayout(prefs.stackLayout),
-                secondary, width1, height1, bitrate1);
+                secondary, width1, height1, bitrate1, prefs.stretchSecondScreen);
     }
 
     public void apply(LinearLayout streamContainer, StreamView primary, StreamView secondaryView,
@@ -182,7 +185,7 @@ public class DualDisplayLayout {
         setWeighted(secondaryView, gpWeight, vertical);
         secondaryView.setVisibility(View.VISIBLE);
         primary.setDesiredAspectRatio((double) primaryWidth / Math.max(1, primaryHeight));
-        secondaryView.setDesiredAspectRatio((double) width1 / Math.max(1, height1));
+        secondaryView.applyFill(width1, height1, stretchSecondary);
 
         streamContainer.removeView(primary);
         streamContainer.removeView(secondaryView);
@@ -200,6 +203,12 @@ public class DualDisplayLayout {
                                            Mode effective, Display secondary) {
         String spec = prefs.secondScreenRes;
         if (spec == null || spec.isEmpty() || "auto".equals(spec)) {
+            // Stretching a 16:9 GamePad onto Thor's bottom panel needs the
+            // 1080p bitstream. Auto's panel native size (1080×1240) makes
+            // Sunshine letterbox/crop that 16:9 capture.
+            if (prefs.stretchSecondScreen) {
+                return new int[] { prefs.width, prefs.height };
+            }
             if (effective == Mode.DUAL_PANEL && secondary != null) {
                 return displaySize(secondary);
             }
@@ -277,12 +286,8 @@ public class DualDisplayLayout {
     }
 
     private static int[] displaySize(Display display) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Display.Mode mode = display.getMode();
-            return new int[] { mode.getPhysicalWidth(), mode.getPhysicalHeight() };
-        }
         DisplayMetrics metrics = new DisplayMetrics();
         display.getRealMetrics(metrics);
-        return new int[] { metrics.widthPixels, metrics.heightPixels };
+        return new int[] { Math.max(2, metrics.widthPixels), Math.max(2, metrics.heightPixels) };
     }
 }

@@ -12,7 +12,14 @@ Settings → Dual display:
 - **Primary only** — stock single stream of the TV.
 - **GamePad only (Odin)** — one stream of the virtual GamePad display, fullscreen. Does not encode the TV. Use this on a single-screen handheld.
 
-Debug APK id: `com.fangoh.moonlight.debug` (not official Moonlight).
+## Fill (TV vs GamePad)
+
+Settings → **TV / primary fill** and **GamePad / second screen fill** are independent.
+
+- **Fit** keeps the stream aspect (letterbox).
+- **Stretch to fill** scales that stream to the panel. Default for GamePad is stretch so a 1080p virtual GamePad fills Thor’s bottom screen instead of cropping to 1080×1240.
+
+When GamePad fill is stretch and second-screen resolution is Auto, the GamePad bitstream stays on the TV resolution (1080p) so Sunshine does not letterbox the 16:9 capture into the Thor panel’s native mode.
 
 ## Point at sunshine-ds, not Decky Sunshine
 

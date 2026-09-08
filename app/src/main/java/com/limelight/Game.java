@@ -254,7 +254,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             setPreferredOrientationForCurrentDisplay();
         }
 
-        if (prefConfig.stretchVideo || shouldIgnoreInsetsForResolution(prefConfig.width, prefConfig.height)) {
+        if (prefConfig.stretchVideo || prefConfig.stretchSecondScreen || shouldIgnoreInsetsForResolution(prefConfig.width, prefConfig.height)) {
             // Allow the activity to layout under notches if the fill-screen option
             // was turned on by the user or it's a full-screen native resolution
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -436,6 +436,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 + " effective=" + dualDisplay.effective
                 + " stack=" + dualDisplay.stackLayout
                 + " secondRes=" + dualDisplay.width1 + "x" + dualDisplay.height1
+                + " tvFill=" + (prefConfig.stretchVideo ? "stretch" : "fit")
+                + " gamepadFill=" + (dualDisplay.stretchSecondary ? "stretch" : "fit")
                 + " hostMaxVideoStreams=" + hostMaxVideoStreams);
         if (dualDisplay.wantsSecondStream()) {
             decoderRendererSecondary = new MediaCodecDecoderRenderer(
@@ -1053,13 +1055,21 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
-        if (prefConfig.stretchVideo || aspectRatioMatch) {
+        boolean stretchPrimary = prefConfig.stretchVideo;
+        int fillW = prefConfig.width;
+        int fillH = prefConfig.height;
+        if (dualDisplay != null && dualDisplay.wantsGamepadAsPrimary()) {
+            stretchPrimary = dualDisplay.stretchSecondary;
+            fillW = dualDisplay.width1;
+            fillH = dualDisplay.height1;
+        }
+        if (stretchPrimary || aspectRatioMatch) {
             // Set the surface to the size of the video
-            streamView.getHolder().setFixedSize(prefConfig.width, prefConfig.height);
+            streamView.getHolder().setFixedSize(fillW, fillH);
         }
         else {
             // Set the surface to scale based on the aspect ratio of the stream
-            streamView.setDesiredAspectRatio((double)prefConfig.width / (double)prefConfig.height);
+            streamView.setDesiredAspectRatio((double)fillW / (double)fillH);
         }
 
         // Set the desired refresh rate that will get passed into setFrameRate() later
@@ -2888,6 +2898,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         });
         secondaryPresentation.show();
         streamViewSecondary = secondaryPresentation.getStreamView();
+        streamViewSecondary.applyFill(dualDisplay.width1, dualDisplay.height1, dualDisplay.stretchSecondary);
         bindPointerInput(streamViewSecondary);
         bindPointerInput(secondaryPresentation.getBackgroundTouchView());
         bindSecondaryStreamSurface();
@@ -2915,6 +2926,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 }
                 secondarySurfaceReady = true;
                 LimeLog.info("Secondary stream surface ready " + width + "x" + height);
+                if (dualDisplay != null && streamViewSecondary != null) {
+                    streamViewSecondary.applyFill(dualDisplay.width1, dualDisplay.height1,
+                            dualDisplay.stretchSecondary);
+                }
                 if (decoderRendererSecondary != null) {
                     decoderRendererSecondary.setRenderTarget(holder);
                     if (attemptedConnection && holder.getSurface() != null && holder.getSurface().isValid()) {

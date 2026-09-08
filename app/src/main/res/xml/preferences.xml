@@ -36,10 +36,20 @@
             android:entryValues="@array/video_frame_pacing_values"
             android:summary="@string/summary_frame_pacing"
             android:defaultValue="latency" />
-        <CheckBoxPreference
-            android:key="checkbox_stretch_video"
-            android:title="@string/title_checkbox_stretch_video"
-            android:defaultValue="false" />
+        <ListPreference
+            android:key="list_tv_fill"
+            android:title="@string/title_tv_fill"
+            android:summary="@string/summary_tv_fill"
+            android:entries="@array/stream_fill_names"
+            android:entryValues="@array/stream_fill_values"
+            android:defaultValue="fit" />
+        <ListPreference
+            android:key="list_gamepad_fill"
+            android:title="@string/title_gamepad_fill"
+            android:summary="@string/summary_gamepad_fill"
+            android:entries="@array/stream_fill_names"
+            android:entryValues="@array/stream_fill_values"
+            android:defaultValue="stretch" />
         <ListPreference
             android:key="list_dual_display"
             android:title="@string/title_dual_display"
