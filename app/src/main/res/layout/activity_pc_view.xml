@@ -73,6 +73,17 @@
         android:preferKeepClear="true"
         style="?android:attr/borderlessButtonStyle"/>
     
+    <Button
+        android:id="@+id/screenModeButton"
+        android:layout_width="wrap_content"
+        android:layout_height="65dp"
+        android:layout_alignParentTop="true"
+        android:layout_toStartOf="@+id/manuallyAddPc"
+        android:minWidth="72dp"
+        android:preferKeepClear="true"
+        android:textSize="16sp"
+        style="?android:attr/borderlessButtonStyle"/>
+
     <ImageButton
         android:id="@+id/manuallyAddPc"
         android:layout_width="70dp"

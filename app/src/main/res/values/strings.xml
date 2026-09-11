@@ -168,6 +168,10 @@
     <string name="dual_display_stacked">Stack both on this screen</string>
     <string name="dual_display_primary_only">Primary display only</string>
     <string name="dual_display_gamepad_only">GamePad only (Odin)</string>
+    <string name="screen_mode_top">Top</string>
+    <string name="screen_mode_both">Both</string>
+    <string name="screen_mode_bottom">Bottom</string>
+    <string name="screen_mode_toast">Screens: %1$s</string>
     <string name="title_second_screen_res">GamePad / second screen resolution</string>
     <string name="summary_second_screen_res">Auto-detect uses the other Android panel (Thor) or this screen (Odin GamePad only / stacked). The TV stream stays on the resolution setting above. Sunshine DS resizes the virtual GamePad display to match.</string>
     <string name="second_screen_res_auto">Auto-detect this / second screen</string>
