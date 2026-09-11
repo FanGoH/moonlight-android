@@ -2,13 +2,10 @@ package com.limelight.ui;
 
 import android.app.Presentation;
 import android.content.Context;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
-import android.view.Window;
-import android.view.WindowManager;
 import android.widget.FrameLayout;
 
 /**
@@ -39,37 +36,10 @@ public class DualDisplayPresentation extends Presentation {
                 Gravity.CENTER);
         root.addView(streamView, params);
         setContentView(root);
-        prefer60Hz();
-    }
-
-    /**
-     * Thor's GamePad LCD is 120 Hz; the host capture is 60 Hz. Pinning the
-     * Presentation to 60 Hz stops a 120/60 beat flicker on the bottom panel.
-     */
-    private void prefer60Hz() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return;
-        }
-        Display display = getDisplay();
-        Window window = getWindow();
-        if (display == null || window == null) {
-            return;
-        }
-        Display.Mode best = null;
-        float bestDelta = Float.MAX_VALUE;
-        for (Display.Mode mode : display.getSupportedModes()) {
-            float delta = Math.abs(mode.getRefreshRate() - 60f);
-            if (delta < bestDelta) {
-                bestDelta = delta;
-                best = mode;
-            }
-        }
-        if (best == null || bestDelta > 2f) {
-            return;
-        }
-        WindowManager.LayoutParams attrs = window.getAttributes();
-        attrs.preferredDisplayModeId = best.getModeId();
-        window.setAttributes(attrs);
+        // Do not pin this Display to 60 Hz. preferredDisplayModeId on Thor's
+        // GamePad LCD dismisses the Presentation; bottom taps then hit the
+        // top Activity (display 0 / TV) and GamePad inject never runs.
+        // Host :2 stays 1920x1080 — do not resize the virtual display.
     }
 
     public View getBackgroundTouchView() {

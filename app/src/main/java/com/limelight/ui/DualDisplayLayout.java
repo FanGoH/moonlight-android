@@ -145,16 +145,8 @@ public class DualDisplayLayout {
             height1 &= ~1;
         }
         int bitrate1 = Math.max(2000, prefs.bitrate / 4);
-        boolean stretch = prefs.stretchSecondScreen;
-        // Thor bottom is 1240×1080; host GamePad is 1920×1080. Stretching that
-        // 16:9 buffer onto the panel every 120 Hz vsync is the dual-panel flicker.
-        // Letterbox (fit) keeps 16:9 and lets SurfaceFlinger scale once.
-        if (effective == Mode.DUAL_PANEL && secondary != null &&
-                aspectMismatch(width1, height1, secondary)) {
-            stretch = false;
-        }
         return new DualDisplayLayout(requested, effective, parseStackLayout(prefs.stackLayout),
-                secondary, width1, height1, bitrate1, stretch);
+                secondary, width1, height1, bitrate1, prefs.stretchSecondScreen);
     }
 
     /**
@@ -166,20 +158,6 @@ public class DualDisplayLayout {
             return 60;
         }
         return requestedFps;
-    }
-
-    private static boolean aspectMismatch(int streamW, int streamH, Display secondary) {
-        int[] panel = displaySize(secondary);
-        float streamAr = (float) streamW / (float) Math.max(1, streamH);
-        // Landscape Presentation is 1240×1080 (1.15); 1920×1080 is 1.78.
-        int pw = Math.max(panel[0], panel[1]);
-        int ph = Math.min(panel[0], panel[1]);
-        if (panel[0] >= panel[1]) {
-            pw = panel[0];
-            ph = panel[1];
-        }
-        float panelAr = (float) pw / (float) Math.max(1, ph);
-        return Math.abs(streamAr - panelAr) > 0.08f;
     }
 
     public void apply(LinearLayout streamContainer, StreamView primary, StreamView secondaryView,
