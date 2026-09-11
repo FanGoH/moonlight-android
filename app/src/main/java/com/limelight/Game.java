@@ -535,10 +535,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             }
         }
 
+        int encodeFps = DualDisplayLayout.encodeFps(chosenFrameRate, dualDisplay);
+        if (encodeFps != chosenFrameRate) {
+            LimeLog.info("Capping dual-stream encode to " + encodeFps + "fps (host capture is 60Hz)");
+        }
+
         StreamConfiguration.Builder config = new StreamConfiguration.Builder()
                 .setResolution(prefConfig.width, prefConfig.height)
-                .setLaunchRefreshRate(prefConfig.fps)
-                .setRefreshRate(chosenFrameRate)
+                .setLaunchRefreshRate(encodeFps)
+                .setRefreshRate(encodeFps)
                 .setApp(app)
                 .setBitrate(prefConfig.bitrate)
                 .setEnableSops(prefConfig.enableSops)
@@ -561,7 +566,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             LimeLog.info("GamePad-only stream " + dualDisplay.width1 + "x" + dualDisplay.height1);
         }
         if (dualDisplay.wantsSecondStream()) {
-            config.setSecondaryVideo(dualDisplay.width1, dualDisplay.height1, chosenFrameRate, dualDisplay.bitrate1);
+            config.setSecondaryVideo(dualDisplay.width1, dualDisplay.height1, encodeFps, dualDisplay.bitrate1);
         }
 
         StreamConfiguration streamConfig = config.build();
@@ -2973,13 +2978,22 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private void applySurfaceFrameRate(SurfaceHolder holder) {
-        float desiredFrameRate;
+        applyStreamFrameRate(holder);
+    }
 
-        if (mayReduceRefreshRate() || desiredRefreshRate < prefConfig.fps) {
-            desiredFrameRate = prefConfig.fps;
+    private int streamEncodeFps() {
+        return DualDisplayLayout.encodeFps(prefConfig.fps, dualDisplay);
+    }
+
+    private void applyStreamFrameRate(SurfaceHolder holder) {
+        float desiredFrameRate;
+        int encodeFps = streamEncodeFps();
+
+        if (mayReduceRefreshRate() || desiredRefreshRate < encodeFps) {
+            desiredFrameRate = encodeFps;
         }
         else {
-            desiredFrameRate = desiredRefreshRate;
+            desiredFrameRate = Math.min(desiredRefreshRate, encodeFps);
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -3033,43 +3047,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        float desiredFrameRate;
-
         surfaceCreated = true;
-
-        // Android will pick the lowest matching refresh rate for a given frame rate value, so we want
-        // to report the true FPS value if refresh rate reduction is enabled. We also report the true
-        // FPS value if there's no suitable matching refresh rate. In that case, Android could try to
-        // select a lower refresh rate that avoids uneven pull-down (ex: 30 Hz for a 60 FPS stream on
-        // a display that maxes out at 50 Hz).
-        if (mayReduceRefreshRate() || desiredRefreshRate < prefConfig.fps) {
-            desiredFrameRate = prefConfig.fps;
-        }
-        else {
-            // Otherwise, we will pretend that our frame rate matches the refresh rate we picked in
-            // prepareDisplayForRendering(). This will usually be the highest refresh rate that our
-            // frame rate evenly divides into, which ensures the lowest possible display latency.
-            desiredFrameRate = desiredRefreshRate;
-        }
-
-        // Tell the OS about our frame rate to allow it to adapt the display refresh rate appropriately
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // We want to change frame rate even if it's not seamless, since prepareDisplayForRendering()
-            // will not set the display mode on S+ if it only differs by the refresh rate. It depends
-            // on us to trigger the frame rate switch here.
-            holder.getSurface().setFrameRate(desiredFrameRate,
-                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE,
-                    Surface.CHANGE_FRAME_RATE_ALWAYS);
-        }
-        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            holder.getSurface().setFrameRate(desiredFrameRate,
-                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
-        }
-
-        // Disable producer throttling on the underlying surface for reduced latency
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN) {
-            holder.getSurface().setProducerThrottlingEnabled(false);
-        }
+        applyStreamFrameRate(holder);
     }
 
     @Override
