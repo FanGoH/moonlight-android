@@ -145,8 +145,14 @@ public class DualDisplayLayout {
             height1 &= ~1;
         }
         int bitrate1 = Math.max(2000, prefs.bitrate / 4);
+        // Host top can be 4K while :2 / GamePad stays 1920x1080. Fill the
+        // Thor/Odin bottom panel (stretch). Letterbox was the white bars.
+        boolean stretch = prefs.stretchSecondScreen;
+        if (effective == Mode.DUAL_PANEL) {
+            stretch = true;
+        }
         return new DualDisplayLayout(requested, effective, parseStackLayout(prefs.stackLayout),
-                secondary, width1, height1, bitrate1, prefs.stretchSecondScreen);
+                secondary, width1, height1, bitrate1, stretch);
     }
 
     /**
