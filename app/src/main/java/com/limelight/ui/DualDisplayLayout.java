@@ -6,6 +6,7 @@ import android.os.Build;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 
 import com.limelight.preferences.PreferenceConfiguration;
@@ -161,11 +162,13 @@ public class DualDisplayLayout {
         return requestedFps;
     }
 
-    public void apply(LinearLayout streamContainer, StreamView primary, StreamView secondaryView,
+    public void apply(LinearLayout streamContainer, StreamView primary, View secondaryHost,
                       int primaryWidth, int primaryHeight) {
         if (effective != Mode.STACKED) {
             setMatchParent(primary);
-            secondaryView.setVisibility(View.GONE);
+            if (secondaryHost != null) {
+                secondaryHost.setVisibility(View.GONE);
+            }
             return;
         }
 
@@ -194,20 +197,23 @@ public class DualDisplayLayout {
         streamContainer.setOrientation(vertical ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         streamContainer.setGravity(Gravity.CENTER);
         setWeighted(primary, tvWeight, vertical);
-        setWeighted(secondaryView, gpWeight, vertical);
-        secondaryView.setVisibility(View.VISIBLE);
+        setWeighted(secondaryHost, gpWeight, vertical);
+        secondaryHost.setVisibility(View.VISIBLE);
         primary.setDesiredAspectRatio((double) primaryWidth / Math.max(1, primaryHeight));
-        secondaryView.applyFill(width1, height1, stretchSecondary);
+        StreamView secondaryStream = findStreamView(secondaryHost);
+        if (secondaryStream != null) {
+            secondaryStream.applyFill(width1, height1, stretchSecondary);
+        }
 
         streamContainer.removeView(primary);
-        streamContainer.removeView(secondaryView);
+        streamContainer.removeView(secondaryHost);
         if (gamepadFirst) {
-            streamContainer.addView(secondaryView);
+            streamContainer.addView(secondaryHost);
             streamContainer.addView(primary);
         }
         else {
             streamContainer.addView(primary);
-            streamContainer.addView(secondaryView);
+            streamContainer.addView(secondaryHost);
         }
     }
 
@@ -240,7 +246,23 @@ public class DualDisplayLayout {
         return new int[] { HOST_GAMEPAD_WIDTH, HOST_GAMEPAD_HEIGHT };
     }
 
-    private static void setWeighted(StreamView view, int weight, boolean vertical) {
+    private static StreamView findStreamView(View view) {
+        if (view instanceof StreamView) {
+            return (StreamView) view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                StreamView child = findStreamView(group.getChildAt(i));
+                if (child != null) {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void setWeighted(View view, int weight, boolean vertical) {
         LinearLayout.LayoutParams params = vertical ?
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, weight) :
                 new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight);

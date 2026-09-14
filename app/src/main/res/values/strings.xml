@@ -185,7 +185,9 @@
     <string name="stack_layout_side_gamepad">Side by side (GamePad | TV)</string>
     <string name="stack_layout_large_tv">Large TV, small GamePad</string>
     <string name="stack_layout_large_gamepad">Large GamePad, small TV</string>
-    <string name="conn_secondary_video_ended">Second display stream ended. Continuing with the TV display.</string>
+    <string name="conn_secondary_video_ended">Second screen not streaming</string>
+    <string name="second_screen_not_streaming">Second screen not streaming</string>
+    <string name="second_screen_idle_hint">Moonlight Screensaver</string>
     <string name="resolution_prefix_native">Native</string>
     <string name="resolution_prefix_native_fullscreen">Native Full-Screen</string>
     <string name="resolution_prefix_native_landscape">(Landscape)</string>
