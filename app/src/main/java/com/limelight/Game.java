@@ -149,6 +149,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private StreamView streamView;
     private StreamView streamViewSecondary;
     private StreamView activitySecondaryView;
+    private View secondaryStreamHost;
+    private TextView secondScreenLegend;
+    private boolean secondScreenIdle = true;
     private LinearLayout streamContainer;
     private DualDisplayLayout dualDisplay;
     private DualDisplayPresentation secondaryPresentation;
@@ -272,6 +275,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         streamView = findViewById(R.id.surfaceView);
         streamViewSecondary = findViewById(R.id.surfaceViewSecondary);
         activitySecondaryView = streamViewSecondary;
+        secondaryStreamHost = findViewById(R.id.secondaryStreamHost);
+        secondScreenLegend = findViewById(R.id.secondScreenLegend);
         streamView.setOnGenericMotionListener(this);
         streamView.setOnKeyListener(this);
         streamView.setInputCallbacks(this);
@@ -455,14 +460,30 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     false,
                     glPrefs.glRenderer,
                     this);
-            dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
+            decoderRendererSecondary.setContentListener(new MediaCodecDecoderRenderer.ContentListener() {
+                @Override
+                public void onSubstantialVideo(int length) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            setSecondScreenIdle(false);
+                        }
+                    });
+                }
+            });
+            dualDisplay.apply(streamContainer, streamView, secondaryLayoutHost(),
                     prefConfig.width, prefConfig.height);
+            if (activitySecondaryView != null) {
+                activitySecondaryView.applyFill(dualDisplay.width1, dualDisplay.height1,
+                        dualDisplay.stretchSecondary);
+            }
+            setSecondScreenIdle(true);
             if (dualDisplay.effective == DualDisplayLayout.Mode.DUAL_PANEL && dualDisplay.secondaryDisplay != null) {
                 showSecondaryPresentation(dualDisplay.secondaryDisplay);
             }
         }
         else {
-            dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
+            dualDisplay.apply(streamContainer, streamView, secondaryLayoutHost(),
                     prefConfig.width, prefConfig.height);
         }
 
@@ -2750,8 +2771,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                displayTransientMessage(getResources().getString(R.string.conn_secondary_video_ended));
-                hideSecondaryVideo();
+                setSecondScreenIdle(true);
             }
         });
     }
@@ -2911,6 +2931,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             fillTouchContexts(touchContextMapSecondary, streamViewSecondary, 1);
         }
         restoringSecondaryPresentation = false;
+        setSecondScreenIdle(secondScreenIdle);
     }
 
     private void bindSecondaryStreamSurface() {
@@ -2968,13 +2989,43 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         decoderRendererSecondary.parkOutputSurface(width, height);
     }
 
+    private View secondaryLayoutHost() {
+        if (secondaryStreamHost != null) {
+            return secondaryStreamHost;
+        }
+        return activitySecondaryView;
+    }
+
+    private void setSecondScreenIdle(boolean idle) {
+        secondScreenIdle = idle;
+        String title = getString(R.string.second_screen_not_streaming);
+        String hint = getString(R.string.second_screen_idle_hint);
+        if (secondScreenLegend != null) {
+            if (idle && dualDisplay != null && dualDisplay.effective == DualDisplayLayout.Mode.STACKED) {
+                secondScreenLegend.setText(title + "\n" + hint);
+                secondScreenLegend.setVisibility(View.VISIBLE);
+            }
+            else {
+                secondScreenLegend.setVisibility(View.GONE);
+            }
+        }
+        DualDisplayPresentation presentation = secondaryPresentation;
+        if (presentation != null) {
+            presentation.setIdleLegend(idle, title, hint);
+        }
+    }
+
     private void hideSecondaryVideo() {
         if (streamViewSecondary != null) {
             streamViewSecondary.setVisibility(View.GONE);
         }
         dismissSecondaryPresentation();
-        dualDisplay.apply(streamContainer, streamView, activitySecondaryView,
+        dualDisplay.apply(streamContainer, streamView, secondaryLayoutHost(),
                 prefConfig.width, prefConfig.height);
+        if (activitySecondaryView != null && dualDisplay != null) {
+            activitySecondaryView.applyFill(dualDisplay.width1, dualDisplay.height1,
+                    dualDisplay.stretchSecondary);
+        }
     }
 
     private void applySurfaceFrameRate(SurfaceHolder holder) {

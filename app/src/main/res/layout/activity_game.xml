@@ -27,13 +27,29 @@
             android:defaultFocusHighlightEnabled="false">
             <requestFocus />
         </com.limelight.ui.StreamView>
-        <com.limelight.ui.StreamView
-            android:id="@+id/surfaceViewSecondary"
+        <FrameLayout
+            android:id="@+id/secondaryStreamHost"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:layout_gravity="center"
-            android:visibility="gone" />
+            android:visibility="gone">
+            <com.limelight.ui.StreamView
+                android:id="@+id/surfaceViewSecondary"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="center" />
+            <TextView
+                android:id="@+id/secondScreenLegend"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:padding="16dp"
+                android:background="#CC000000"
+                android:textAppearance="?android:attr/textAppearanceMedium"
+                android:textSize="20sp"
+                android:textColor="#FFFFFFFF"
+                android:visibility="gone" />
+        </FrameLayout>
     </LinearLayout>
 
     <TextView
