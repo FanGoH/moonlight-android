@@ -1,10 +1,8 @@
 package com.limelight.ui;
 
 import android.app.Activity;
-import android.content.pm.ActivityInfo;
 import android.hardware.display.DisplayManager;
 import android.os.Build;
-import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
@@ -145,14 +143,11 @@ public class DualDisplayLayout {
             height1 &= ~1;
         }
         int bitrate1 = Math.max(2000, prefs.bitrate / 4);
-        // Host top can be 4K while :2 / GamePad stays 1920x1080. Fill the
-        // Thor/Odin bottom panel (stretch). Letterbox was the white bars.
-        boolean stretch = prefs.stretchSecondScreen;
-        if (effective == Mode.DUAL_PANEL) {
-            stretch = true;
-        }
+        // Stretch vs Fit is the GamePad fill pref. Do not force stretch on
+        // dual-panel — the client decides. Host :2 is 1920x1080; bars on
+        // Thor were Sunshine letterboxing that into the panel-native size.
         return new DualDisplayLayout(requested, effective, parseStackLayout(prefs.stackLayout),
-                secondary, width1, height1, bitrate1, stretch);
+                secondary, width1, height1, bitrate1, prefs.stretchSecondScreen);
     }
 
     /**
@@ -216,20 +211,17 @@ public class DualDisplayLayout {
         }
     }
 
+    // Host Game Mode video/1 is headless :2 at 1920x1080. Requesting Thor's
+    // panel native (1080×1240) or the TV's 4K makes Sunshine letterbox that
+    // capture (white bars). Stretch vs Fit scales this bitstream on the client.
+    private static final int HOST_GAMEPAD_WIDTH = 1920;
+    private static final int HOST_GAMEPAD_HEIGHT = 1080;
+
     private static int[] resolveSecondSize(Activity activity, PreferenceConfiguration prefs,
                                            Mode effective, Display secondary) {
         String spec = prefs.secondScreenRes;
         if (spec == null || spec.isEmpty() || "auto".equals(spec)) {
-            // Stretching a 16:9 GamePad onto Thor's bottom panel needs the
-            // 1080p bitstream. Auto's panel native size (1080×1240) makes
-            // Sunshine letterbox/crop that 16:9 capture.
-            if (prefs.stretchSecondScreen) {
-                return new int[] { prefs.width, prefs.height };
-            }
-            if (effective == Mode.DUAL_PANEL && secondary != null) {
-                return displaySize(secondary);
-            }
-            return activityDisplaySize(activity);
+            return new int[] { HOST_GAMEPAD_WIDTH, HOST_GAMEPAD_HEIGHT };
         }
         if ("stream".equals(spec)) {
             return new int[] { prefs.width, prefs.height };
@@ -245,24 +237,7 @@ public class DualDisplayLayout {
             } catch (NumberFormatException ignored) {
             }
         }
-        return activityDisplaySize(activity);
-    }
-
-    private static int[] activityDisplaySize(Activity activity) {
-        Display display = activity.getWindowManager().getDefaultDisplay();
-        DisplayMetrics metrics = new DisplayMetrics();
-        display.getRealMetrics(metrics);
-        int width = Math.max(2, metrics.widthPixels);
-        int height = Math.max(2, metrics.heightPixels);
-        if (activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE ||
-                activity.getRequestedOrientation() == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
-            if (height > width) {
-                int tmp = width;
-                width = height;
-                height = tmp;
-            }
-        }
-        return new int[] { width, height };
+        return new int[] { HOST_GAMEPAD_WIDTH, HOST_GAMEPAD_HEIGHT };
     }
 
     private static void setWeighted(StreamView view, int weight, boolean vertical) {
@@ -300,11 +275,5 @@ public class DualDisplayLayout {
             }
         }
         return null;
-    }
-
-    private static int[] displaySize(Display display) {
-        DisplayMetrics metrics = new DisplayMetrics();
-        display.getRealMetrics(metrics);
-        return new int[] { Math.max(2, metrics.widthPixels), Math.max(2, metrics.heightPixels) };
     }
 }

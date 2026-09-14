@@ -2,6 +2,7 @@ package com.limelight.ui;
 
 import android.app.Presentation;
 import android.content.Context;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Display;
 import android.view.Gravity;
@@ -24,6 +25,9 @@ public class DualDisplayPresentation extends Presentation {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         FrameLayout root = new FrameLayout(getContext());
+        // Fit letterboxes inside this view. Default window background is white
+        // — that was the Thor bottom bars. Stretch has no bars.
+        root.setBackgroundColor(Color.BLACK);
         backgroundTouchView = new View(getContext());
         FrameLayout.LayoutParams fill = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
