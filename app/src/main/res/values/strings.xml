@@ -158,7 +158,7 @@
     <string name="title_tv_fill">TV / primary fill</string>
     <string name="summary_tv_fill">Fit keeps 16:9 with bars. Stretch fills this panel (may distort). Replaces the older stretch-video checkbox when set.</string>
     <string name="title_gamepad_fill">GamePad / second screen fill</string>
-    <string name="summary_gamepad_fill">Independent of the TV. Stretch scales the 1080p GamePad down to fill Thor’s bottom panel (or the stacked GamePad pane). Fit letterboxes.</string>
+    <string name="summary_gamepad_fill">Independent of the TV. The host always sends 1920×1080. Stretch fills this panel (Cemu pad / Azahar bottom may distort). Fit keeps 16:9 with bars.</string>
     <string name="stream_fill_fit">Fit (keep aspect)</string>
     <string name="stream_fill_stretch">Stretch to fill</string>
     <string name="title_dual_display">Dual display</string>
@@ -173,8 +173,8 @@
     <string name="screen_mode_bottom">Bottom</string>
     <string name="screen_mode_toast">Screens: %1$s</string>
     <string name="title_second_screen_res">GamePad / second screen resolution</string>
-    <string name="summary_second_screen_res">Auto-detect uses the other Android panel (Thor) or this screen (Odin GamePad only / stacked). The TV stream stays on the resolution setting above. Sunshine DS resizes the virtual GamePad display to match.</string>
-    <string name="second_screen_res_auto">Auto-detect this / second screen</string>
+    <string name="summary_second_screen_res">Auto is 1920×1080 to match the host GamePad capture. Do not use the Thor panel size or the TV 4K setting — Sunshine letterboxes those. Stretch vs Fit is the GamePad fill setting above.</string>
+    <string name="second_screen_res_auto">Auto (1920×1080 host GamePad)</string>
     <string name="second_screen_res_stream">Same as TV stream resolution</string>
     <string name="second_screen_res_gamepad">1080×1240 (Wii U GamePad / Thor)</string>
     <string name="title_stack_layout">Stacked layout</string>
