@@ -1827,24 +1827,21 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private float[] getStreamViewRelativeNormalizedXY(View view, MotionEvent event, int pointerIndex) {
-        float normalizedX = event.getX(pointerIndex);
-        float normalizedY = event.getY(pointerIndex);
-
-        // For the containing background view, we must subtract the origin
-        // of the StreamView to get video-relative coordinates.
-        if (view != streamView) {
-            normalizedX -= streamView.getX();
-            normalizedY -= streamView.getY();
-        }
+        TouchTarget target = resolveTouchTarget(view, event.getX(pointerIndex), event.getY(pointerIndex));
+        View stream = target.stream != null ? target.stream : streamView;
+        float normalizedX = target.x;
+        float normalizedY = target.y;
 
         normalizedX = Math.max(normalizedX, 0.0f);
         normalizedY = Math.max(normalizedY, 0.0f);
 
-        normalizedX = Math.min(normalizedX, streamView.getWidth());
-        normalizedY = Math.min(normalizedY, streamView.getHeight());
+        int width = Math.max(1, stream.getWidth());
+        int height = Math.max(1, stream.getHeight());
+        normalizedX = Math.min(normalizedX, width);
+        normalizedY = Math.min(normalizedY, height);
 
-        normalizedX /= streamView.getWidth();
-        normalizedY /= streamView.getHeight();
+        normalizedX /= width;
+        normalizedY /= height;
 
         return new float[] { normalizedX, normalizedY };
     }
