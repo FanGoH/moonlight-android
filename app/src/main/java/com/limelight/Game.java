@@ -1675,9 +1675,15 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private void fillTouchContexts(TouchContext[] map, View view, int displayIndex) {
+        int refWidth = prefConfig.width;
+        int refHeight = prefConfig.height;
+        if (displayIndex == 1 && dualDisplay != null && dualDisplay.width1 > 0 && dualDisplay.height1 > 0) {
+            refWidth = dualDisplay.width1;
+            refHeight = dualDisplay.height1;
+        }
         for (int i = 0; i < map.length; i++) {
             if (!prefConfig.touchscreenTrackpad) {
-                map[i] = new AbsoluteTouchContext(conn, i, view, displayIndex);
+                map[i] = new AbsoluteTouchContext(conn, i, view, displayIndex, refWidth, refHeight);
             }
             else {
                 map[i] = new RelativeTouchContext(conn, i,
@@ -1757,11 +1763,45 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 (int)(localY + fromLoc[1] - streamLoc[1]));
     }
 
+    private boolean eventIsOnSecondaryDisplay(MotionEvent event) {
+        if (event == null || streamViewSecondary == null) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            return false;
+        }
+        Display secondary = streamViewSecondary.getDisplay();
+        if (secondary == null) {
+            return false;
+        }
+        // Some compile SDKs hide MotionEvent.getDisplayId(); it is API 30.
+        try {
+            Object id = MotionEvent.class.getMethod("getDisplayId").invoke(event);
+            return id instanceof Integer && ((Integer) id) == secondary.getDisplayId();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private TouchTarget resolveTouchTarget(View view, float localX, float localY) {
+        return resolveTouchTarget(view, localX, localY, null);
+    }
+
+    private TouchTarget resolveTouchTarget(View view, float localX, float localY, MotionEvent event) {
         if (touchContextMapSecondary[0] != null && streamViewSecondary != null) {
             if (isSecondaryStreamTouchView(view)) {
                 return touchTargetForStream(streamViewSecondary, touchContextMapSecondary, 1,
                         view, localX, localY);
+            }
+            // Dual-panel: a bottom-display event can arrive with view==null (generic
+            // motion) or the activity view. getX() is then not GamePad-local — use
+            // display-relative raw coords against streamViewSecondary.
+            if (eventIsOnSecondaryDisplay(event)) {
+                int[] loc = new int[2];
+                streamViewSecondary.getLocationOnScreen(loc);
+                return new TouchTarget(streamViewSecondary, touchContextMapSecondary, 1,
+                        (int)(event.getRawX() - loc[0]),
+                        (int)(event.getRawY() - loc[1]));
             }
             // Stacked mode: both streams share one display, so screen-space hit-testing is valid.
             if (view != null && viewsOnSameDisplay(view, streamViewSecondary)) {
@@ -1827,7 +1867,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     private float[] getStreamViewRelativeNormalizedXY(View view, MotionEvent event, int pointerIndex) {
-        TouchTarget target = resolveTouchTarget(view, event.getX(pointerIndex), event.getY(pointerIndex));
+        TouchTarget target = resolveTouchTarget(view, event.getX(pointerIndex), event.getY(pointerIndex), event);
         View stream = target.stream != null ? target.stream : streamView;
         float normalizedX = target.x;
         float normalizedY = target.y;
@@ -2281,7 +2321,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 // If this is the parent view, we'll offset our coordinates to appear as if they
                 // are relative to the StreamView like our StreamView touch events are.
                 int actionIndex = event.getActionIndex();
-                TouchTarget target = resolveTouchTarget(view, event.getX(actionIndex), event.getY(actionIndex));
+                TouchTarget target = resolveTouchTarget(view, event.getX(actionIndex), event.getY(actionIndex), event);
                 int eventX = target.x;
                 int eventY = target.y;
                 TouchContext[] contexts = target.contexts;
@@ -2348,7 +2388,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     }
                     if (actionIndex == 0 && event.getPointerCount() > 1 && !context.isCancelled()) {
                         // The original secondary touch now becomes primary
-                        TouchTarget next = resolveTouchTarget(view, event.getX(1), event.getY(1));
+                        TouchTarget next = resolveTouchTarget(view, event.getX(1), event.getY(1), event);
                         context.touchDownEvent(next.x, next.y, event.getEventTime(), false);
                     }
                     break;
@@ -2363,7 +2403,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                             {
                                 TouchTarget hist = resolveTouchTarget(view,
                                         event.getHistoricalX(aTouchContextMap.getActionIndex(), i),
-                                        event.getHistoricalY(aTouchContextMap.getActionIndex(), i));
+                                        event.getHistoricalY(aTouchContextMap.getActionIndex(), i),
+                                        event);
                                 aTouchContextMap.touchMoveEvent(hist.x, hist.y, event.getHistoricalEventTime(i));
                             }
                         }
@@ -2375,7 +2416,8 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                         {
                             TouchTarget now = resolveTouchTarget(view,
                                     event.getX(aTouchContextMap.getActionIndex()),
-                                    event.getY(aTouchContextMap.getActionIndex()));
+                                    event.getY(aTouchContextMap.getActionIndex()),
+                                    event);
                             aTouchContextMap.touchMoveEvent(now.x, now.y, event.getEventTime());
                         }
                     }
@@ -2405,8 +2447,34 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
     }
 
+    private int streamReferenceWidth(int displayIndex) {
+        if (displayIndex == 1 && dualDisplay != null && dualDisplay.width1 > 0) {
+            return dualDisplay.width1;
+        }
+        return prefConfig.width;
+    }
+
+    private int streamReferenceHeight(int displayIndex) {
+        if (displayIndex == 1 && dualDisplay != null && dualDisplay.height1 > 0) {
+            return dualDisplay.height1;
+        }
+        return prefConfig.height;
+    }
+
+    private void sendStreamMousePosition(float viewX, float viewY, View stream, int displayIndex) {
+        int viewWidth = Math.max(1, stream.getWidth());
+        int viewHeight = Math.max(1, stream.getHeight());
+        int refWidth = streamReferenceWidth(displayIndex);
+        int refHeight = streamReferenceHeight(displayIndex);
+        viewX = Math.min(Math.max(viewX, 0), viewWidth);
+        viewY = Math.min(Math.max(viewY, 0), viewHeight);
+        short streamX = (short)Math.round(viewX * (float)refWidth / (float)viewWidth);
+        short streamY = (short)Math.round(viewY * (float)refHeight / (float)viewHeight);
+        conn.sendMousePosition(streamX, streamY, (short)refWidth, (short)refHeight, displayIndex);
+    }
+
     private void updateMousePosition(View touchedView, MotionEvent event) {
-        TouchTarget target = resolveTouchTarget(touchedView, event.getX(0), event.getY(0));
+        TouchTarget target = resolveTouchTarget(touchedView, event.getX(0), event.getY(0), event);
         float eventX = target.x;
         float eventY = target.y;
         View stream = target.stream;
@@ -2442,10 +2510,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Normalize these to the view size. We can't just drop them because we won't always get an event
         // right at the boundary of the view, so dropping them would result in our cursor never really
         // reaching the sides of the screen.
-        eventX = Math.min(Math.max(eventX, 0), stream.getWidth());
-        eventY = Math.min(Math.max(eventY, 0), stream.getHeight());
-
-        conn.sendMousePosition((short)eventX, (short)eventY, (short)stream.getWidth(), (short)stream.getHeight(), target.displayIndex);
+        sendStreamMousePosition(eventX, eventY, stream, target.displayIndex);
     }
 
     @Override
