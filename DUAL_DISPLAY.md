@@ -21,9 +21,13 @@ Settings → **TV / primary fill** and **GamePad / second screen fill** are inde
 
 When GamePad fill is stretch and second-screen resolution is Auto, the GamePad bitstream stays on the TV resolution (1080p) so Sunshine does not letterbox the 16:9 capture into the Thor panel’s native mode.
 
+Host `packet_to_unit` is linear `x/width`. Do **not** unletterbox a Stretch panel (`ref=1239x1079` from an old APK). Newer builds send stream-space 1920×1080 refs (`98700dcd`); that is the same linear map. Game Mode checkpoint **`checkpoint-2026-09-18-gamepad-xtest`**.
+
 ## Point at sunshine-ds, not Decky Sunshine
 
-Add the PC as `HOST:48100`. Production Decky Sunshine stays on `:47989`.
+Plasma daily dual-screen: add the PC as `HOST:48100`. Production Decky Sunshine stays on `:47989`.
+
+Game Mode on the Steam Machine is **`:48200`** (`sunshine-ds-kms`). **THE standard is `checkpoint-2026-09-18-gamepad-xtest`.** White De-FanGoH tile, not the grey `:48100` warning tile.
 
 ## Build (this machine)
 
