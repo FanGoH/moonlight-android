@@ -70,6 +70,33 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
 
     private static final int BATTERY_RECHECK_INTERVAL_MS = 120 * 1000;
 
+    // Odin analog LT often tops out ~0.75–0.83. A firm press at 200/255 becomes 1.0.
+    private static final float TRIGGER_FULL_AT = 200f / 255f;
+
+    static float normalizeTrigger(float value, float deadzone) {
+        if (value <= deadzone) {
+            return 0f;
+        }
+        if (value >= 1f) {
+            return 1f;
+        }
+        float fullAt = Math.max(deadzone + 0.05f, TRIGGER_FULL_AT);
+        if (value >= fullAt) {
+            return 1f;
+        }
+        return (value - deadzone) / (fullAt - deadzone);
+    }
+
+    static byte triggerToPacket(float value, float deadzone) {
+        int scaled = Math.round(normalizeTrigger(value, deadzone) * 255f);
+        if (scaled < 0) {
+            scaled = 0;
+        } else if (scaled > 255) {
+            scaled = 255;
+        }
+        return (byte) scaled;
+    }
+
     @SuppressLint("InlinedApi")
     private static final Map<Integer, Integer> ANDROID_TO_LI_BUTTON_MAP = Map.ofEntries(
             Map.entry(KeyEvent.KEYCODE_BUTTON_A, ControllerPacket.A_FLAG),
@@ -1631,15 +1658,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 }
             }
 
-            if (lt <= context.triggerDeadzone) {
-                lt = 0;
-            }
-            if (rt <= context.triggerDeadzone) {
-                rt = 0;
-            }
-
-            context.leftTrigger = (byte)(lt * 0xFF);
-            context.rightTrigger = (byte)(rt * 0xFF);
+            context.leftTrigger = triggerToPacket(lt, context.triggerDeadzone);
+            context.rightTrigger = triggerToPacket(rt, context.triggerDeadzone);
         }
 
         if (context.hatXAxis != -1 && context.hatYAxis != -1) {
@@ -2826,15 +2846,8 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
         context.rightStickX = (short) (rightStickVector.getX() * 0x7FFE);
         context.rightStickY = (short) (-rightStickVector.getY() * 0x7FFE);
 
-        if (leftTrigger <= context.triggerDeadzone) {
-            leftTrigger = 0;
-        }
-        if (rightTrigger <= context.triggerDeadzone) {
-            rightTrigger = 0;
-        }
-
-        context.leftTrigger = (byte)(leftTrigger * 0xFF);
-        context.rightTrigger = (byte)(rightTrigger * 0xFF);
+        context.leftTrigger = triggerToPacket(leftTrigger, context.triggerDeadzone);
+        context.rightTrigger = triggerToPacket(rightTrigger, context.triggerDeadzone);
 
         context.inputMap = buttonFlags;
 
