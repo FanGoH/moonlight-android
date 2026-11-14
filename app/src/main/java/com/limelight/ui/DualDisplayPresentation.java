@@ -2,11 +2,14 @@ package com.limelight.ui;
 
 import android.app.Presentation;
 import android.content.Context;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Display;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 /**
  * Hosts the second Sunshine DS video stream on another Android display
@@ -15,6 +18,7 @@ import android.widget.FrameLayout;
 public class DualDisplayPresentation extends Presentation {
     private View backgroundTouchView;
     private StreamView streamView;
+    private TextView idleLegend;
 
     public DualDisplayPresentation(Context outerContext, Display display) {
         super(outerContext, display);
@@ -24,6 +28,9 @@ public class DualDisplayPresentation extends Presentation {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         FrameLayout root = new FrameLayout(getContext());
+        // Fit letterboxes inside this view. Default window background is white
+        // — that was the Thor bottom bars. Stretch has no bars.
+        root.setBackgroundColor(Color.BLACK);
         backgroundTouchView = new View(getContext());
         FrameLayout.LayoutParams fill = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -35,7 +42,35 @@ public class DualDisplayPresentation extends Presentation {
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 Gravity.CENTER);
         root.addView(streamView, params);
+        idleLegend = new TextView(getContext());
+        idleLegend.setTextColor(Color.WHITE);
+        idleLegend.setGravity(Gravity.CENTER);
+        idleLegend.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        idleLegend.setBackgroundColor(0xCC000000);
+        idleLegend.setPadding(48, 48, 48, 48);
+        idleLegend.setVisibility(View.GONE);
+        root.addView(idleLegend, fill);
         setContentView(root);
+        // Do not pin this Display to 60 Hz. preferredDisplayModeId on Thor's
+        // GamePad LCD dismisses the Presentation; bottom taps then hit the
+        // top Activity (display 0 / TV) and GamePad inject never runs.
+        // Host :2 stays 1920x1080 — do not resize the virtual display.
+    }
+
+    public void setIdleLegend(boolean idle, String title, String hint) {
+        if (idleLegend == null) {
+            return;
+        }
+        if (!idle) {
+            idleLegend.setVisibility(View.GONE);
+            return;
+        }
+        String text = title == null ? "" : title;
+        if (hint != null && !hint.isEmpty()) {
+            text = text.isEmpty() ? hint : text + "\n" + hint;
+        }
+        idleLegend.setText(text);
+        idleLegend.setVisibility(View.VISIBLE);
     }
 
     public View getBackgroundTouchView() {

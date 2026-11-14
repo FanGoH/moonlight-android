@@ -249,6 +249,66 @@ public class StreamSettings extends Activity {
             pref.setEntryValues(entryValues);
         }
 
+        private void wireShareMouseBehavior() {
+            final CheckBoxPreference share =
+                    (CheckBoxPreference) findPreference(PreferenceConfiguration.SHARE_MOUSE_BEHAVIOR_PREF_STRING);
+            final CheckBoxPreference shared =
+                    (CheckBoxPreference) findPreference("checkbox_touchscreen_trackpad");
+            final CheckBoxPreference gameMode =
+                    (CheckBoxPreference) findPreference(PreferenceConfiguration.TOUCHSCREEN_TRACKPAD_GAMEMODE_PREF_STRING);
+            final CheckBoxPreference desktop =
+                    (CheckBoxPreference) findPreference(PreferenceConfiguration.TOUCHSCREEN_TRACKPAD_DESKTOP_PREF_STRING);
+            if (share == null || shared == null || gameMode == null || desktop == null) {
+                return;
+            }
+
+            final Runnable applyEnabled = new Runnable() {
+                @Override
+                public void run() {
+                    boolean together = share.isChecked();
+                    shared.setEnabled(together);
+                    gameMode.setEnabled(!together);
+                    desktop.setEnabled(!together);
+                }
+            };
+            applyEnabled.run();
+
+            share.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                @Override
+                public boolean onPreferenceChange(Preference preference, Object newValue) {
+                    boolean together = Boolean.TRUE.equals(newValue);
+                    shared.setEnabled(together);
+                    gameMode.setEnabled(!together);
+                    desktop.setEnabled(!together);
+                    if (together) {
+                        boolean value = shared.isChecked();
+                        gameMode.setChecked(value);
+                        desktop.setChecked(value);
+                        PreferenceManager.getDefaultSharedPreferences(getActivity()).edit()
+                                .putBoolean(PreferenceConfiguration.TOUCHSCREEN_TRACKPAD_GAMEMODE_PREF_STRING, value)
+                                .putBoolean(PreferenceConfiguration.TOUCHSCREEN_TRACKPAD_DESKTOP_PREF_STRING, value)
+                                .apply();
+                    }
+                    return true;
+                }
+            });
+            shared.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                @Override
+                public boolean onPreferenceChange(Preference preference, Object newValue) {
+                    if (share.isChecked()) {
+                        boolean value = Boolean.TRUE.equals(newValue);
+                        gameMode.setChecked(value);
+                        desktop.setChecked(value);
+                        PreferenceManager.getDefaultSharedPreferences(getActivity()).edit()
+                                .putBoolean(PreferenceConfiguration.TOUCHSCREEN_TRACKPAD_GAMEMODE_PREF_STRING, value)
+                                .putBoolean(PreferenceConfiguration.TOUCHSCREEN_TRACKPAD_DESKTOP_PREF_STRING, value)
+                                .apply();
+                    }
+                    return true;
+                }
+            });
+        }
+
         private void resetBitrateToDefault(SharedPreferences prefs, String res, String fps) {
             if (res == null) {
                 res = prefs.getString(PreferenceConfiguration.RESOLUTION_PREF_STRING, PreferenceConfiguration.DEFAULT_RESOLUTION);
@@ -350,6 +410,8 @@ public class StreamSettings extends Activity {
                 // Remove the vibration strength selector of the device doesn't have amplitude control
                 category_gamepad_settings.removePreference(findPreference("seekbar_vibrate_fallback_strength"));
             }
+
+            wireShareMouseBehavior();
 
             Display display = getActivity().getWindowManager().getDefaultDisplay();
             float maxSupportedFps = display.getRefreshRate();

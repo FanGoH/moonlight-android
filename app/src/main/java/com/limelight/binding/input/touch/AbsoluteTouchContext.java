@@ -47,6 +47,8 @@ public class AbsoluteTouchContext implements TouchContext {
     private final int actionIndex;
     private final View targetView;
     private final int displayIndex;
+    private final int referenceWidth;
+    private final int referenceHeight;
     private final Handler handler;
 
     private final Runnable leftButtonUpRunnable = new Runnable() {
@@ -74,10 +76,18 @@ public class AbsoluteTouchContext implements TouchContext {
 
     public AbsoluteTouchContext(NvConnection conn, int actionIndex, View view, int displayIndex)
     {
+        this(conn, actionIndex, view, displayIndex, 0, 0);
+    }
+
+    public AbsoluteTouchContext(NvConnection conn, int actionIndex, View view, int displayIndex,
+                                int referenceWidth, int referenceHeight)
+    {
         this.conn = conn;
         this.actionIndex = actionIndex;
         this.targetView = view;
         this.displayIndex = displayIndex;
+        this.referenceWidth = referenceWidth;
+        this.referenceHeight = referenceHeight;
         this.handler = new Handler(Looper.getMainLooper());
     }
 
@@ -118,10 +128,17 @@ public class AbsoluteTouchContext implements TouchContext {
         // Normalize these to the view size. We can't just drop them because we won't always get an event
         // right at the boundary of the view, so dropping them would result in our cursor never really
         // reaching the sides of the screen.
-        eventX = Math.min(Math.max(eventX, 0), targetView.getWidth());
-        eventY = Math.min(Math.max(eventY, 0), targetView.getHeight());
-
-        conn.sendMousePosition((short)eventX, (short)eventY, (short)targetView.getWidth(), (short)targetView.getHeight(), displayIndex);
+        int viewWidth = Math.max(1, targetView.getWidth());
+        int viewHeight = Math.max(1, targetView.getHeight());
+        int refWidth = referenceWidth > 0 ? referenceWidth : viewWidth;
+        int refHeight = referenceHeight > 0 ? referenceHeight : viewHeight;
+        eventX = Math.min(Math.max(eventX, 0), viewWidth);
+        eventY = Math.min(Math.max(eventY, 0), viewHeight);
+        // Host video/1 is the 1920×1080 GamePad capture. Thor's bottom panel
+        // is 1080×1240 — sending the view size as the reference shears taps.
+        short streamX = (short)Math.round(eventX * (float)refWidth / (float)viewWidth);
+        short streamY = (short)Math.round(eventY * (float)refHeight / (float)viewHeight);
+        conn.sendMousePosition(streamX, streamY, (short)refWidth, (short)refHeight, displayIndex);
     }
 
     @Override

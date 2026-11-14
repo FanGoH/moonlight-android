@@ -80,6 +80,15 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
     private String glRenderer;
     private boolean foreground = true;
     private PerfOverlayListener perfListener;
+    private ContentListener contentListener;
+
+    public interface ContentListener {
+        void onSubstantialVideo(int length);
+    }
+
+    public void setContentListener(ContentListener listener) {
+        contentListener = listener;
+    }
 
     private static final int CR_MAX_TRIES = 10;
     private static final int CR_RECOVERY_TYPE_NONE = 0;
@@ -1430,6 +1439,12 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
         if (stopping) {
             // Don't bother if we're stopping
             return MoonBridge.DR_OK;
+        }
+
+        // Dummy Sunshine frames are ~1KB I-frames. Real 1080p GamePad / clock
+        // I-frames are tens of KB. Hide the "not streaming" legend on those.
+        if (contentListener != null && decodeUnitLength >= 4096) {
+            contentListener.onSubstantialVideo(decodeUnitLength);
         }
 
         if (lastFrameNumber == 0) {
