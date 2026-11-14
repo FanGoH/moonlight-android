@@ -28,6 +28,7 @@ import com.limelight.nvstream.input.KeyboardPacket;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.nvstream.jni.MoonBridge;
 import com.limelight.preferences.GlPreferences;
+import com.limelight.preferences.HostPadProfile;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.GameGestures;
 import com.limelight.ui.StreamView;
@@ -352,6 +353,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         pcName = Game.this.getIntent().getStringExtra(EXTRA_PC_NAME);
 
         String host = Game.this.getIntent().getStringExtra(EXTRA_HOST);
+        HostPadProfile.prefetch(host, prefConfig.hostPadProfileFgpcPort);
         int port = Game.this.getIntent().getIntExtra(EXTRA_PORT, NvHTTP.DEFAULT_HTTP_PORT);
         int httpsPort = Game.this.getIntent().getIntExtra(EXTRA_HTTPS_PORT, 0); // 0 is treated as unknown
         int appId = Game.this.getIntent().getIntExtra(EXTRA_APP_ID, StreamConfiguration.INVALID_APP_ID);
@@ -597,6 +599,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 new ComputerDetails.AddressTuple(host, port),
                 httpsPort, uniqueId, streamConfig,
                 PlatformBinding.getCryptoProvider(this), serverCert);
+        HostPadProfile.awaitFetch(1200);
         controllerHandler = new ControllerHandler(this, conn, this, prefConfig);
         keyboardTranslator = new KeyboardTranslator();
 
@@ -1491,6 +1494,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return false;
         }
 
+        // FanGoH: physical Back as Guide even from a non-gamepad device
+        if (prefConfig.physicalBackAsGuide && event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            return controllerHandler.handleButtonDown(event);
+        }
+
         // Handle a synthetic back button event that some Android OS versions
         // create as a result of a right-click. This event WILL repeat if
         // the right mouse button is held down, so we ignore those.
@@ -1571,6 +1579,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         // Pass-through virtual navigation keys
         if ((event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0) {
             return false;
+        }
+
+        if (prefConfig.physicalBackAsGuide && event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            return controllerHandler.handleButtonUp(event);
         }
 
         // Handle a synthetic back button event that some Android OS versions
@@ -1681,8 +1693,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             refWidth = dualDisplay.width1;
             refHeight = dualDisplay.height1;
         }
+        boolean trackpad = prefConfig.touchscreenTrackpadForHost();
+        LimeLog.info("Touchscreen " + (trackpad ? "trackpad" : "direct")
+                + " share=" + prefConfig.shareMouseBehavior
+                + " hostGameMode=" + HostPadProfile.isGameMode()
+                + " display=" + displayIndex);
         for (int i = 0; i < map.length; i++) {
-            if (!prefConfig.touchscreenTrackpad) {
+            if (!trackpad) {
                 map[i] = new AbsoluteTouchContext(conn, i, view, displayIndex, refWidth, refHeight);
             }
             else {

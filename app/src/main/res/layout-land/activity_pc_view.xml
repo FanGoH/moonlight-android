@@ -91,4 +91,14 @@
         android:textSize="14sp"
         style="?android:attr/borderlessButtonStyle"/>
 
+    <Button
+        android:id="@+id/padProfileButton"
+        android:layout_width="wrap_content"
+        android:layout_height="65dp"
+        android:layout_alignParentStart="true"
+        android:layout_below="@id/screenModeButton"
+        android:minWidth="70dp"
+        android:textSize="14sp"
+        style="?android:attr/borderlessButtonStyle"/>
+
 </RelativeLayout>

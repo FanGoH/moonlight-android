@@ -23,6 +23,7 @@ import com.limelight.preferences.StreamSettings;
 import com.limelight.ui.AdapterFragment;
 import com.limelight.ui.AdapterFragmentCallbacks;
 import com.limelight.ui.DualDisplayCycle;
+import com.limelight.ui.PadProfileCycle;
 import com.limelight.utils.Dialog;
 import com.limelight.utils.HelpLauncher;
 import com.limelight.utils.ServerHelper;
@@ -162,6 +163,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
             }
         });
         DualDisplayCycle.bind(findViewById(R.id.screenModeButton), this);
+        PadProfileCycle.bind(findViewById(R.id.padProfileButton), this);
 
         // Amazon review didn't like the help button because the wiki was not entirely
         // navigable via the Fire TV remote (though the relevant parts were). Let's hide
