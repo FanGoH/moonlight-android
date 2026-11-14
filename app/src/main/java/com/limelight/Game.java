@@ -1133,6 +1133,13 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                 // TODO: Do we want to use WindowInsetsController here on R+ instead of
                 // SYSTEM_UI_FLAG_IMMERSIVE_STICKY? They seem to do the same thing as of S...
 
+                // Keep the nav bar while Inlay is up so the IME switcher is reachable.
+                if (imeVisible) {
+                    Game.this.getWindow().getDecorView().setSystemUiVisibility(
+                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+                    return;
+                }
+
                 // In multi-window mode on N+, we need to drop our layout flags or we'll
                 // be drawing underneath the system UI.
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode()) {
@@ -1506,7 +1513,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             return false;
         }
         // Soft-keyboard output still goes to the host; only physical/gamepad keys are yielded.
-        return (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) == 0;
+        return !isSoftKeyboardKey(event);
     }
 
     @Override
@@ -1884,10 +1891,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         else {
             if (imeInput != null) {
                 imeInput.requestFocus();
-                inputManager.showSoftInput(imeInput, InputMethodManager.SHOW_FORCED);
+                // SHOW_FORCED pins the current IME and hides the switcher on Odin/Portal.
+                inputManager.showSoftInput(imeInput, 0);
             }
             else {
-                inputManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+                inputManager.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0);
             }
             setImeVisible(true);
         }
@@ -1911,7 +1919,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
                     return;
                 }
                 if (conn != null && connected) {
-                    conn.sendUtf8Text(s.toString());
+                    sendImeCommittedText(s.toString());
                 }
                 clearingImeText = true;
                 s.clear();
@@ -1921,7 +1929,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         imeInput.setOnKeyListener(new View.OnKeyListener() {
             @Override
             public boolean onKey(View v, int keyCode, KeyEvent event) {
-                if ((event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) == 0) {
+                if (!isSoftKeyboardKey(event)) {
                     return false;
                 }
                 switch (event.getAction()) {
@@ -1952,6 +1960,39 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         imeVisible = visible;
         if (!visible && streamView != null && imeInput != null && imeInput.hasFocus()) {
             streamView.requestFocus();
+        }
+        hideSystemUi(visible ? 0 : 1000);
+    }
+
+    private static boolean isSoftKeyboardKey(KeyEvent event) {
+        return (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0
+                || event.getDeviceId() == KeyCharacterMap.VIRTUAL_KEYBOARD;
+    }
+
+    // Linux sunshine-ds types UTF-8 via Ctrl+Shift+U hex, which a terminal
+    // sees as F-keys / leftover digits (U+0044 'D' is evdev 68 / F10).
+    // Send ASCII the same way a hardware keyboard does.
+    private void sendImeCommittedText(String text) {
+        KeyCharacterMap keymap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            KeyEvent[] events = keymap.getEvents(new char[] { ch });
+            if (events == null || events.length == 0) {
+                conn.sendUtf8Text(String.valueOf(ch));
+                continue;
+            }
+            for (KeyEvent event : events) {
+                switch (event.getAction()) {
+                    case KeyEvent.ACTION_DOWN:
+                        handleKeyDown(event);
+                        break;
+                    case KeyEvent.ACTION_UP:
+                        handleKeyUp(event);
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
     }
 
@@ -3391,6 +3432,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         }
 
         // This flag is set for all devices
+        // Don't re-immerse while the IME switcher / Inlay is on screen.
+        if (imeVisible) {
+            return;
+        }
+
         if ((visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
             hideSystemUi(2000);
         }
