@@ -66,6 +66,20 @@
         android:preferKeepClear="true"
         android:visibility="gone" />
 
+    <EditText
+        android:id="@+id/imeInput"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:layout_gravity="bottom|start"
+        android:background="@android:color/transparent"
+        android:cursorVisible="false"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:imeOptions="flagNoExtractUi|flagNoFullscreen|flagNoEnterAction"
+        android:importantForAutofill="no"
+        android:inputType="textMultiLine|textNoSuggestions"
+        android:textColor="#00000000" />
+
     <TextView
         android:id="@+id/notificationOverlay"
         android:layout_width="wrap_content"

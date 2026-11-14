@@ -79,9 +79,11 @@ public class StreamView extends SurfaceView {
 
     @Override
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        // This callbacks allows us to override dumb IME behavior like when
-        // Samsung's default keyboard consumes Shift+Space.
-        if (inputCallbacks != null) {
+        // This callback lets us override dumb IME behavior like when
+        // Samsung's default keyboard consumes Shift+Space. While a software
+        // keyboard (Inlay) is open, do not intercept — gamepad keys must
+        // reach the IME so D-pad/A can pick letters.
+        if (inputCallbacks != null && inputCallbacks.interceptKeysBeforeIme()) {
             if (event.getAction() == KeyEvent.ACTION_DOWN) {
                 if (inputCallbacks.handleKeyDown(event)) {
                     return true;
@@ -100,5 +102,8 @@ public class StreamView extends SurfaceView {
     public interface InputCallbacks {
         boolean handleKeyUp(KeyEvent event);
         boolean handleKeyDown(KeyEvent event);
+        default boolean interceptKeysBeforeIme() {
+            return true;
+        }
     }
 }

@@ -66,6 +66,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.SystemClock;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Rational;
 import android.view.Display;
 import android.view.InputDevice;
@@ -79,7 +81,9 @@ import android.view.View.OnGenericMotionListener;
 import android.view.View.OnSystemUiVisibilityChangeListener;
 import android.view.View.OnTouchListener;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.view.inputmethod.InputMethodManager;
@@ -148,6 +152,9 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private boolean waitingForAllModifiersUp = false;
     private int specialKeyCode = KeyEvent.KEYCODE_UNKNOWN;
     private StreamView streamView;
+    private EditText imeInput;
+    private boolean imeVisible;
+    private boolean clearingImeText;
     private StreamView streamViewSecondary;
     private StreamView activitySecondaryView;
     private View secondaryStreamHost;
@@ -281,6 +288,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         streamView.setOnGenericMotionListener(this);
         streamView.setOnKeyListener(this);
         streamView.setInputCallbacks(this);
+        setupImeInput();
 
         // Listen for touch events on the background touch view to enable trackpad mode
         // to work on areas outside of the StreamView itself. We use a separate View
@@ -1488,9 +1496,27 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     }
 
     @Override
+    public boolean interceptKeysBeforeIme() {
+        // Inlay (and any other IME) must see D-pad/A/B while the 3-finger keyboard is up.
+        return !imeVisible;
+    }
+
+    private boolean shouldPassKeyToIme(KeyEvent event) {
+        if (!imeVisible) {
+            return false;
+        }
+        // Soft-keyboard output still goes to the host; only physical/gamepad keys are yielded.
+        return (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) == 0;
+    }
+
+    @Override
     public boolean handleKeyDown(KeyEvent event) {
         // Pass-through virtual navigation keys
         if ((event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0) {
+            return false;
+        }
+
+        if (shouldPassKeyToIme(event)) {
             return false;
         }
 
@@ -1578,6 +1604,10 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public boolean handleKeyUp(KeyEvent event) {
         // Pass-through virtual navigation keys
         if ((event.getFlags() & KeyEvent.FLAG_VIRTUAL_HARD_KEY) != 0) {
+            return false;
+        }
+
+        if (shouldPassKeyToIme(event)) {
             return false;
         }
 
@@ -1839,7 +1869,90 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     public void toggleKeyboard() {
         LimeLog.info("Toggling keyboard overlay");
         InputMethodManager inputManager = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-        inputManager.toggleSoftInput(0, 0);
+        if (imeVisible) {
+            if (imeInput != null) {
+                inputManager.hideSoftInputFromWindow(imeInput.getWindowToken(), 0);
+            }
+            else {
+                inputManager.toggleSoftInput(0, 0);
+            }
+            if (streamView != null) {
+                streamView.requestFocus();
+            }
+            setImeVisible(false);
+        }
+        else {
+            if (imeInput != null) {
+                imeInput.requestFocus();
+                inputManager.showSoftInput(imeInput, InputMethodManager.SHOW_FORCED);
+            }
+            else {
+                inputManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
+            }
+            setImeVisible(true);
+        }
+    }
+
+    private void setupImeInput() {
+        imeInput = findViewById(R.id.imeInput);
+        if (imeInput == null) {
+            return;
+        }
+        imeInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (clearingImeText || s.length() == 0) {
+                    return;
+                }
+                if (conn != null && connected) {
+                    conn.sendUtf8Text(s.toString());
+                }
+                clearingImeText = true;
+                s.clear();
+                clearingImeText = false;
+            }
+        });
+        imeInput.setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if ((event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) == 0) {
+                    return false;
+                }
+                switch (event.getAction()) {
+                    case KeyEvent.ACTION_DOWN:
+                        return handleKeyDown(event);
+                    case KeyEvent.ACTION_UP:
+                        return handleKeyUp(event);
+                    default:
+                        return false;
+                }
+            }
+        });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().getDecorView().setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    setImeVisible(insets.isVisible(WindowInsets.Type.ime()));
+                    return v.onApplyWindowInsets(insets);
+                }
+            });
+        }
+    }
+
+    private void setImeVisible(boolean visible) {
+        if (imeVisible == visible) {
+            return;
+        }
+        imeVisible = visible;
+        if (!visible && streamView != null && imeInput != null && imeInput.hasFocus()) {
+            streamView.requestFocus();
+        }
     }
 
     private byte getLiTouchTypeFromEvent(MotionEvent event) {
@@ -2125,6 +2238,12 @@ public class Game extends Activity implements SurfaceHolder.Callback,
 
         int eventSource = event.getSource();
         int deviceSources = event.getDevice() != null ? event.getDevice().getSources() : 0;
+        if (imeVisible &&
+                ((eventSource & InputDevice.SOURCE_CLASS_JOYSTICK) != 0 ||
+                        (deviceSources & InputDevice.SOURCE_CLASS_JOYSTICK) != 0)) {
+            // Left stick moves Inlay's highlight while the IME is open.
+            return false;
+        }
         if ((eventSource & InputDevice.SOURCE_CLASS_JOYSTICK) != 0) {
             if (controllerHandler.handleMotionEvent(event)) {
                 return true;
