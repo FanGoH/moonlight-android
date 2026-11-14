@@ -82,7 +82,6 @@ import android.view.View.OnSystemUiVisibilityChangeListener;
 import android.view.View.OnTouchListener;
 import android.view.Window;
 import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -1131,63 +1130,33 @@ public class Game extends Activity implements SurfaceHolder.Callback,
     private final Runnable hideSystemUi = new Runnable() {
             @Override
             public void run() {
-                applyStreamSystemUi();
-            }
-    };
+                // TODO: Do we want to use WindowInsetsController here on R+ instead of
+                // SYSTEM_UI_FLAG_IMMERSIVE_STICKY? They seem to do the same thing as of S...
 
-    // Immersive sticky + FLAG_FULLSCREEN eat Odin's IME globe and Inlay's
-    // hold-Settings picker. LAYOUT_STABLE alone does not bring the bars back.
-    @SuppressLint("NewApi")
-    private void applyStreamSystemUi() {
-        Window window = getWindow();
-        View decor = window.getDecorView();
-        if (imeVisible) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true);
-                WindowInsetsController controller = window.getInsetsController();
-                if (controller != null) {
-                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_DEFAULT);
-                    controller.show(WindowInsets.Type.statusBars()
-                            | WindowInsets.Type.navigationBars()
-                            | WindowInsets.Type.captionBar());
+                // Do not retile the window while Inlay is up — clearing FLAG_FULLSCREEN
+                // or showing system bars dismisses the 3-finger keyboard on Odin.
+                if (imeVisible) {
+                    return;
+                }
+
+                // In multi-window mode on N+, we need to drop our layout flags or we'll
+                // be drawing underneath the system UI.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode()) {
+                    Game.this.getWindow().getDecorView().setSystemUiVisibility(
+                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+                }
+                else {
+                    // Use immersive mode
+                    Game.this.getWindow().getDecorView().setSystemUiVisibility(
+                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                            View.SYSTEM_UI_FLAG_FULLSCREEN |
+                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
                 }
             }
-            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
-            return;
-        }
-
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
-                | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInMultiWindowMode()) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true);
-            }
-            decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-            return;
-        }
-
-        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false);
-            WindowInsetsController controller = window.getInsetsController();
-            if (controller != null) {
-                controller.setSystemBarsBehavior(
-                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-                controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-            }
-        }
-        decor.setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                View.SYSTEM_UI_FLAG_FULLSCREEN |
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-    }
+    };
 
     private void hideSystemUi(int delay) {
         Handler h = getWindow().getDecorView().getHandler();
@@ -1211,9 +1180,7 @@ public class Game extends Activity implements SurfaceHolder.Callback,
             decoderRenderer.notifyVideoBackground();
         }
         else {
-            if (!imeVisible) {
-                getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-            }
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
             decoderRenderer.notifyVideoForeground();
         }
 
@@ -1923,11 +1890,11 @@ public class Game extends Activity implements SurfaceHolder.Callback,
         else {
             if (imeInput != null) {
                 imeInput.requestFocus();
-                // SHOW_FORCED pins the current IME and hides the switcher on Odin/Portal.
-                inputManager.showSoftInput(imeInput, 0);
+                // SHOW_FORCED keeps Inlay up on a 3-finger tap in an immersive stream.
+                inputManager.showSoftInput(imeInput, InputMethodManager.SHOW_FORCED);
             }
             else {
-                inputManager.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0);
+                inputManager.toggleSoftInput(InputMethodManager.SHOW_FORCED, 0);
             }
             setImeVisible(true);
         }
