@@ -8,9 +8,14 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -103,10 +108,50 @@ public final class HostPadProfile {
     }
 
     private static void fetchFromHost(String hostAddress, int fgpcPort) {
+        for (String host : httpHosts(hostAddress)) {
+            if (fetchOnce(host, fgpcPort)) {
+                return;
+            }
+        }
+    }
+
+    static List<String> httpHosts(String hostAddress) {
+        Set<String> hosts = new LinkedHashSet<>();
+        if (hostAddress != null && !hostAddress.isEmpty()) {
+            hosts.add(bracketHost(hostAddress));
+        }
+        try {
+            for (InetAddress addr : InetAddress.getAllByName(hostAddress)) {
+                String ip = addr.getHostAddress();
+                if (ip == null || ip.isEmpty()) {
+                    continue;
+                }
+                int zone = ip.indexOf('%');
+                if (zone >= 0) {
+                    ip = ip.substring(0, zone);
+                }
+                if (addr instanceof Inet6Address) {
+                    hosts.add("[" + ip + "]");
+                } else {
+                    hosts.add(ip);
+                }
+            }
+        } catch (Exception e) {
+            LimeLog.warning("Host pad profile resolve failed: " + e.getMessage());
+        }
+        return new ArrayList<>(hosts);
+    }
+
+    private static String bracketHost(String host) {
+        if (host.indexOf(':') >= 0 && !host.startsWith("[")) {
+            return "[" + host + "]";
+        }
+        return host;
+    }
+
+    private static boolean fetchOnce(String host, int fgpcPort) {
         HttpURLConnection conn = null;
         try {
-            InetAddress addr = InetAddress.getByName(hostAddress);
-            String host = addr.getHostAddress();
             URL url = new URL("http://" + host + ":" + fgpcPort + "/api/moonlight/pad-profile");
             conn = (HttpURLConnection) url.openConnection();
             conn.setConnectTimeout(FETCH_TIMEOUT_MS);
@@ -114,13 +159,13 @@ public final class HostPadProfile {
             conn.setRequestMethod("GET");
             int code = conn.getResponseCode();
             if (code != 200) {
-                LimeLog.warning("Host pad profile HTTP " + code);
-                return;
+                LimeLog.warning("Host pad profile HTTP " + code + " at " + host);
+                return false;
             }
             String body = readStream(conn.getInputStream());
             JSONObject obj = new JSONObject(body);
             if (!obj.optBoolean("ok", false)) {
-                return;
+                return false;
             }
             if (obj.has("li_ctype") && !obj.isNull("li_ctype")) {
                 int li = obj.getInt("li_ctype");
@@ -133,9 +178,12 @@ public final class HostPadProfile {
             cacheExpiryMs = System.currentTimeMillis() + 60_000;
             LimeLog.info("Host pad profile li_ctype=" + obj.opt("li_ctype")
                     + " profile=" + obj.optString("profile")
-                    + " session=" + cachedSession);
+                    + " session=" + cachedSession
+                    + " via " + host);
+            return cachedSession != null && !cachedSession.isEmpty();
         } catch (Exception e) {
-            LimeLog.warning("Host pad profile fetch failed: " + e.getMessage());
+            LimeLog.warning("Host pad profile fetch failed at " + host + ": " + e.getMessage());
+            return false;
         } finally {
             if (conn != null) {
                 conn.disconnect();
