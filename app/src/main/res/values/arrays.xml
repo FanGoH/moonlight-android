@@ -37,6 +37,23 @@
         <item>@string/audioconf_51surround</item>
         <item>@string/audioconf_71surround</item>
     </string-array>
+    <string-array name="gamepad_report_type_names">
+        <item>@string/gamepad_report_host</item>
+        <item>@string/gamepad_report_auto</item>
+        <item>@string/gamepad_report_nintendo</item>
+        <item>@string/gamepad_report_xbox</item>
+        <item>@string/gamepad_report_ps</item>
+        <item>@string/gamepad_report_unknown</item>
+    </string-array>
+    <string-array name="gamepad_report_type_values" translatable="false">
+        <item>host</item>
+        <item>auto</item>
+        <item>nintendo</item>
+        <item>xbox</item>
+        <item>ps</item>
+        <item>unknown</item>
+    </string-array>
+
     <string-array name="audio_config_values" translatable="false">
         <item>2</item>
         <item>51</item>

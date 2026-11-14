@@ -43,6 +43,7 @@ import com.limelight.nvstream.NvConnection;
 import com.limelight.nvstream.input.ControllerPacket;
 import com.limelight.nvstream.input.MouseButtonPacket;
 import com.limelight.nvstream.jni.MoonBridge;
+import com.limelight.preferences.HostPadProfile;
 import com.limelight.preferences.PreferenceConfiguration;
 import com.limelight.ui.GameGestures;
 import com.limelight.utils.Vector2d;
@@ -1322,6 +1323,12 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     // Return a valid keycode, -2 to consume, or -1 to not consume the event
     // Device MAY BE NULL
     private int handleRemapping(InputDeviceContext context, KeyEvent event) {
+        // FanGoH: Odin/handheld physical Back → Xbox Guide (Steam menu).
+        // PHYSICAL BACK AS GUIDE — before ignoreBack pass-through.
+        if (prefConfig.physicalBackAsGuide && event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            return KeyEvent.KEYCODE_BUTTON_MODE;
+        }
+
         // Don't capture the back button if configured
         if (context.ignoreBack) {
             if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
@@ -3173,18 +3180,18 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
                 capabilities |= MoonBridge.LI_CCAP_GYRO;
             }
 
+            boolean motionNonPs = type != MoonBridge.LI_CTYPE_PS && sensorManager != null;
             byte reportedType;
-            if (type != MoonBridge.LI_CTYPE_PS && sensorManager != null) {
-                // Override the detected controller type if we're emulating motion sensors on an Xbox controller
-                Toast.makeText(activityContext, activityContext.getResources().getText(R.string.toast_controller_type_changed), Toast.LENGTH_LONG).show();
+            if (motionNonPs && "auto".equals(prefConfig.gamepadReportType)) {
+                // Stock Moonlight: motion on non-PS pads reports UNKNOWN to the host.
+                if (!prefConfig.suppressControllerTypeToast) {
+                    Toast.makeText(activityContext, activityContext.getResources().getText(R.string.toast_controller_type_changed), Toast.LENGTH_LONG).show();
+                }
                 reportedType = MoonBridge.LI_CTYPE_UNKNOWN;
-
-                // Remember that we should enable the clickpad emulation combo (Select+LB) for this device
                 needsClickpadEmulation = true;
             }
             else {
-                // Report the true type to the host PC if we're not emulating motion sensors
-                reportedType = type;
+                reportedType = HostPadProfile.resolveReportedType(prefConfig, type, motionNonPs);
             }
 
             // We can perform basic rumble with any vibrator

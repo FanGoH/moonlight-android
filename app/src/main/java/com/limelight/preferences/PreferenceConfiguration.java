@@ -61,6 +61,10 @@ public class PreferenceConfiguration {
     private static final String VIBRATE_FALLBACK_STRENGTH_PREF_STRING = "seekbar_vibrate_fallback_strength";
     private static final String FLIP_FACE_BUTTONS_PREF_STRING = "checkbox_flip_face_buttons";
     private static final String TOUCHSCREEN_TRACKPAD_PREF_STRING = "checkbox_touchscreen_trackpad";
+    static final String SHARE_MOUSE_BEHAVIOR_PREF_STRING = "checkbox_share_mouse_behavior";
+    static final String TOUCHSCREEN_TRACKPAD_GAMEMODE_PREF_STRING = "checkbox_touchscreen_trackpad_gamemode";
+    static final String TOUCHSCREEN_TRACKPAD_DESKTOP_PREF_STRING = "checkbox_touchscreen_trackpad_desktop";
+    static final String SUPPRESS_CONTROLLER_TYPE_TOAST_PREF_STRING = "checkbox_suppress_controller_type_toast";
     private static final String TOUCHSCREEN_ABSOLUTE_MIGRATION_PREF_STRING = "migrated_touchscreen_absolute";
     private static final String LATENCY_TOAST_PREF_STRING = "checkbox_enable_post_stream_toast";
     private static final String FRAME_PACING_PREF_STRING = "frame_pacing";
@@ -71,6 +75,8 @@ public class PreferenceConfiguration {
     private static final String GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING = "checkbox_gamepad_touchpad_as_mouse";
     private static final String GAMEPAD_MOTION_SENSORS_PREF_STRING = "checkbox_gamepad_motion_sensors";
     private static final String GAMEPAD_MOTION_FALLBACK_PREF_STRING = "checkbox_gamepad_motion_fallback";
+    private static final String GAMEPAD_REPORT_TYPE_PREF_STRING = "list_gamepad_report_type";
+    private static final String HOST_PAD_FGPC_PORT_PREF_STRING = "seekbar_host_pad_fgpc_port";
 
     static final String DEFAULT_RESOLUTION = "1280x720";
     static final String DEFAULT_FPS = "60";
@@ -88,6 +94,8 @@ public class PreferenceConfiguration {
     private static final boolean ONSCREEN_CONTROLLER_DEFAULT = false;
     private static final boolean ONLY_L3_R3_DEFAULT = false;
     private static final boolean SHOW_GUIDE_BUTTON_DEFAULT = true;
+    private static final boolean PHYSICAL_BACK_AS_GUIDE_DEFAULT = true;
+    private static final String PHYSICAL_BACK_AS_GUIDE_PREF_STRING = "checkbox_physical_back_as_guide";
     private static final boolean DEFAULT_ENABLE_HDR = false;
     private static final boolean DEFAULT_ENABLE_PIP = false;
     private static final boolean DEFAULT_ENABLE_PERF_OVERLAY = false;
@@ -101,6 +109,10 @@ public class PreferenceConfiguration {
     private static final int DEFAULT_VIBRATE_FALLBACK_STRENGTH = 100;
     private static final boolean DEFAULT_FLIP_FACE_BUTTONS = false;
     private static final boolean DEFAULT_TOUCHSCREEN_TRACKPAD = false;
+    private static final boolean DEFAULT_SHARE_MOUSE_BEHAVIOR = false;
+    private static final boolean DEFAULT_TOUCHSCREEN_TRACKPAD_GAMEMODE = false;
+    private static final boolean DEFAULT_TOUCHSCREEN_TRACKPAD_DESKTOP = true;
+    private static final boolean DEFAULT_SUPPRESS_CONTROLLER_TYPE_TOAST = true;
     private static final String DEFAULT_AUDIO_CONFIG = "2"; // Stereo
     private static final boolean DEFAULT_LATENCY_TOAST = false;
     private static final String DEFAULT_FRAME_PACING = "latency";
@@ -111,6 +123,8 @@ public class PreferenceConfiguration {
     private static final boolean DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE = false;
     private static final boolean DEFAULT_GAMEPAD_MOTION_SENSORS = true;
     private static final boolean DEFAULT_GAMEPAD_MOTION_FALLBACK = false;
+    private static final String DEFAULT_GAMEPAD_REPORT_TYPE = "host";
+    private static final int DEFAULT_HOST_PAD_FGPC_PORT = 8484;
     private static final String DUAL_DISPLAY_PREF_STRING = "list_dual_display";
     private static final String SECOND_SCREEN_RES_PREF_STRING = "list_second_screen_res";
     private static final String STACK_LAYOUT_PREF_STRING = "list_stack_layout";
@@ -144,6 +158,7 @@ public class PreferenceConfiguration {
     public boolean onscreenController;
     public boolean onlyL3R3;
     public boolean showGuideButton;
+    public boolean physicalBackAsGuide;
     public boolean enableHdr;
     public boolean enablePip;
     public boolean enablePerfOverlay;
@@ -157,6 +172,12 @@ public class PreferenceConfiguration {
     public boolean vibrateFallbackToDevice;
     public int vibrateFallbackToDeviceStrength;
     public boolean touchscreenTrackpad;
+    /** When true, {@link #touchscreenTrackpad} applies to Game Mode and Desktop. */
+    public boolean shareMouseBehavior;
+    public boolean touchscreenTrackpadGameMode;
+    public boolean touchscreenTrackpadDesktop;
+    /** Hide the gyro/motion "gamepad type may be changed" toast. Default on. */
+    public boolean suppressControllerTypeToast;
     public MoonBridge.AudioConfiguration audioConfiguration;
     public int framePacing;
     public boolean absoluteMouseMode;
@@ -166,9 +187,26 @@ public class PreferenceConfiguration {
     public boolean gamepadMotionSensors;
     public boolean gamepadTouchpadAsMouse;
     public boolean gamepadMotionSensorsFallbackToDevice;
+    /** auto | host | xbox | nintendo | ps | unknown — host reads fgpc :8484. */
+    public String gamepadReportType;
+    public int hostPadProfileFgpcPort;
     public String dualDisplayMode;
     public String secondScreenRes;
     public String stackLayout;
+
+    /**
+     * Trackpad (relative) vs direct (absolute) for this stream.
+     * Shared mouse uses {@link #touchscreenTrackpad}; otherwise Game Mode vs Desktop.
+     */
+    public boolean touchscreenTrackpadForHost() {
+        if (shareMouseBehavior) {
+            return touchscreenTrackpad;
+        }
+        if (HostPadProfile.isGameMode()) {
+            return touchscreenTrackpadGameMode;
+        }
+        return touchscreenTrackpadDesktop;
+    }
 
     public static boolean isNativeResolution(int width, int height) {
         // It's not a native resolution if it matches an existing resolution option
@@ -601,6 +639,7 @@ public class PreferenceConfiguration {
         config.onscreenController = prefs.getBoolean(ONSCREEN_CONTROLLER_PREF_STRING, ONSCREEN_CONTROLLER_DEFAULT);
         config.onlyL3R3 = prefs.getBoolean(ONLY_L3_R3_PREF_STRING, ONLY_L3_R3_DEFAULT);
         config.showGuideButton = prefs.getBoolean(SHOW_GUIDE_BUTTON_PREF_STRING, SHOW_GUIDE_BUTTON_DEFAULT);
+        config.physicalBackAsGuide = prefs.getBoolean(PHYSICAL_BACK_AS_GUIDE_PREF_STRING, PHYSICAL_BACK_AS_GUIDE_DEFAULT);
         config.enableHdr = prefs.getBoolean(ENABLE_HDR_PREF_STRING, DEFAULT_ENABLE_HDR) && !isShieldAtvFirmwareWithBrokenHdr();
         config.enablePip = prefs.getBoolean(ENABLE_PIP_PREF_STRING, DEFAULT_ENABLE_PIP);
         config.enablePerfOverlay = prefs.getBoolean(ENABLE_PERF_OVERLAY_STRING, DEFAULT_ENABLE_PERF_OVERLAY);
@@ -619,6 +658,13 @@ public class PreferenceConfiguration {
                     .apply();
         }
         config.touchscreenTrackpad = prefs.getBoolean(TOUCHSCREEN_TRACKPAD_PREF_STRING, DEFAULT_TOUCHSCREEN_TRACKPAD);
+        config.shareMouseBehavior = prefs.getBoolean(SHARE_MOUSE_BEHAVIOR_PREF_STRING, DEFAULT_SHARE_MOUSE_BEHAVIOR);
+        config.touchscreenTrackpadGameMode = prefs.getBoolean(
+                TOUCHSCREEN_TRACKPAD_GAMEMODE_PREF_STRING, DEFAULT_TOUCHSCREEN_TRACKPAD_GAMEMODE);
+        config.touchscreenTrackpadDesktop = prefs.getBoolean(
+                TOUCHSCREEN_TRACKPAD_DESKTOP_PREF_STRING, DEFAULT_TOUCHSCREEN_TRACKPAD_DESKTOP);
+        config.suppressControllerTypeToast = prefs.getBoolean(
+                SUPPRESS_CONTROLLER_TYPE_TOAST_PREF_STRING, DEFAULT_SUPPRESS_CONTROLLER_TYPE_TOAST);
         config.enableLatencyToast = prefs.getBoolean(LATENCY_TOAST_PREF_STRING, DEFAULT_LATENCY_TOAST);
         config.absoluteMouseMode = prefs.getBoolean(ABSOLUTE_MOUSE_MODE_PREF_STRING, DEFAULT_ABSOLUTE_MOUSE_MODE);
         config.enableAudioFx = prefs.getBoolean(ENABLE_AUDIO_FX_PREF_STRING, DEFAULT_ENABLE_AUDIO_FX);
@@ -627,6 +673,8 @@ public class PreferenceConfiguration {
         config.gamepadTouchpadAsMouse = prefs.getBoolean(GAMEPAD_TOUCHPAD_AS_MOUSE_PREF_STRING, DEFAULT_GAMEPAD_TOUCHPAD_AS_MOUSE);
         config.gamepadMotionSensors = prefs.getBoolean(GAMEPAD_MOTION_SENSORS_PREF_STRING, DEFAULT_GAMEPAD_MOTION_SENSORS);
         config.gamepadMotionSensorsFallbackToDevice = prefs.getBoolean(GAMEPAD_MOTION_FALLBACK_PREF_STRING, DEFAULT_GAMEPAD_MOTION_FALLBACK);
+        config.gamepadReportType = prefs.getString(GAMEPAD_REPORT_TYPE_PREF_STRING, DEFAULT_GAMEPAD_REPORT_TYPE);
+        config.hostPadProfileFgpcPort = prefs.getInt(HOST_PAD_FGPC_PORT_PREF_STRING, DEFAULT_HOST_PAD_FGPC_PORT);
         config.dualDisplayMode = prefs.getString(DUAL_DISPLAY_PREF_STRING, DEFAULT_DUAL_DISPLAY);
         config.secondScreenRes = prefs.getString(SECOND_SCREEN_RES_PREF_STRING, DEFAULT_SECOND_SCREEN_RES);
         config.stackLayout = prefs.getString(STACK_LAYOUT_PREF_STRING, DEFAULT_STACK_LAYOUT);
